@@ -379,7 +379,9 @@ elif page == "🔮 Симулятор 2030 (NEW)":
             fig_wf.update_layout(title="Общая динамика дохода", height=350)
             st.plotly_chart(fig_wf, use_container_width=True)
 
-# --- НОВЫЙ ДЕТЕКТОР (ИСПРАВЛЕННЫЙ) ---
+
+
+# --- НОВЫЙ ДЕТЕКТОР (ИСПРАВЛЕННЫЙ HTML) ---
 elif page == "🕵️ Детектор скрытого (NEW)":
     st.markdown("## 🕵️ ML-Реконструкция доходов (Data-Driven)")
     
@@ -387,7 +389,7 @@ elif page == "🕵️ Детектор скрытого (NEW)":
     <div class="finding-box" style="margin-top:0;">
         <div class="finding-title">🔬 Алгоритм поиска аномалий</div>
         <div style="color: #475569; margin-top: 0.5rem;">
-        Этот инструмент обращается к <b>загруженному датасету (330k наблюдений)</b>, 
+        Инструмент обращается к <b>загруженному датасету (330k наблюдений)</b>, 
         находит кластер людей, похожих на введенный профиль, и берет их реальные показатели потребления в качестве эталона.
         </div>
     </div>
@@ -438,8 +440,7 @@ elif page == "🕵️ Детектор скрытого (NEW)":
         hidden_income = reconstructed_income_full - official_income
         gap_pct = (hidden_income / official_income) * 100 if official_income > 0 else 0
 
-        # --- ОПРЕДЕЛЕНИЕ СТАТУСА (ВЫНЕСЛИ ЛОГИКУ НАРУЖУ) ---
-        # Порог срабатывания аномалии (например, 5000 руб или 10% разницы)
+        # --- ОПРЕДЕЛЕНИЕ СТАТУСА ---
         is_anomaly = hidden_income > 5000
         
         if is_anomaly:
@@ -462,33 +463,31 @@ elif page == "🕵️ Детектор скрытого (NEW)":
             c2.metric("Эталон сбережений", f"{ref_savings:.1f}%")
             st.markdown("---")
             
-            # ЧИСТЫЙ HTML БЕЗ ЛОГИКИ ВНУТРИ СТРОКИ
-            html_block = f"""
-            <div style="background: white; padding: 1.5rem; border-radius: 0.8rem; border: 1px solid #e2e8f0; margin-bottom:1rem;">
-                <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">РАСЧЕТНАЯ МОДЕЛЬ (НА ОСНОВЕ ДАННЫХ):</div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <span>Заявлено:</span>
-                    <span style="font-weight: bold;">{format_number_ru(official_income)} руб.</span>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom:10px; border-bottom:1px solid #eee;">
-                    <span>Реконструкция (ML):</span>
-                    <span style="font-weight: bold; color: #1e3a8a;">{format_number_ru(reconstructed_income_full)} руб.</span>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: bold; color: {status_color};">{status_label}</span>
-                    <span style="font-size: 1.5rem; font-weight: 900; color: {status_color};">{status_value}</span>
-                </div>
-            </div>
-            """
-            st.markdown(html_block, unsafe_allow_html=True)
+            # ВАЖНО: HTML СТРОКА БЕЗ ОТСТУПОВ СЛЕВА, ЧТОБЫ НЕ БЫЛО БЛОКА КОДА
+            html_card = f"""
+<div style="background: white; padding: 1.5rem; border-radius: 0.8rem; border: 1px solid #e2e8f0; margin-bottom:1rem;">
+<div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">РАСЧЕТНАЯ МОДЕЛЬ (НА ОСНОВЕ ДАННЫХ):</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+    <span>Заявлено:</span>
+    <span style="font-weight: bold;">{format_number_ru(official_income)} руб.</span>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom:10px; border-bottom:1px solid #eee;">
+    <span>Реконструкция (ML):</span>
+    <span style="font-weight: bold; color: #1e3a8a;">{format_number_ru(reconstructed_income_full)} руб.</span>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-weight: bold; color: {status_color};">{status_label}</span>
+    <span style="font-size: 1.5rem; font-weight: 900; color: {status_color};">{status_value}</span>
+</div>
+</div>
+"""
+            st.markdown(html_card, unsafe_allow_html=True)
             
             st.write(f"**Интерпретация:** {interpretation}")
 
     else:
         st.error("⚠️ Не удалось загрузить профили кластеров. Проверьте файл cluster_profiles.csv")
+
 # --- КАРТА ---
 elif page == "🗺️ Карта регионов":
     st.markdown("## 🗺️ Интерактивная карта России")
