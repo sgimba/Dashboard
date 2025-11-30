@@ -547,25 +547,23 @@ elif page == "🗺️ Карта регионов":
             labels={'formatted_value': VAR_NAMES.get(metric, metric)}
         )
         
-        # ИСПРАВЛЕНИЕ: Только Россия, прямоугольная карта!
+        # ИСПРАВЛЕНИЕ: Только Россия, правильные границы!
         fig.update_geos(
-            scope='asia',  # ← Азия (включает всю Россию)
+            scope='asia',
             showcountries=True,
             countrycolor='lightgray',
             showsubunits=False,
-            lataxis_range=[40, 75],  # ← Широта: от Кавказа до Арктики
-            lonaxis_range=[25, 180],  # ← Долгота: от Калининграда до Чукотки
-            projection_type='mercator',  # ← Меркатор (прямоугольная!)
-            bgcolor='#f8fafc'
+            lataxis_range=[40, 72],      # Широта: от Кавказа до севера
+            lonaxis_range=[30, 150],     # Долгота: от Петербурга до Забайкалья
+            projection_type='mercator',
+            bgcolor='#f8fafc',
+            resolution=50
         )
         
         # ПРЯМОУГОЛЬНАЯ карта!
         fig.update_layout(
-            height=600,  # ← Фиксированная высота
-            margin=dict(l=0, r=0, t=50, b=0),
-            geo=dict(
-                projection_scale=1.8  # ← Масштаб
-            )
+            height=600,
+            margin=dict(l=0, r=0, t=50, b=0)
         )
         
         st.plotly_chart(fig, use_container_width=True)
