@@ -17,7 +17,7 @@ import numpy as np
 
 # ==================== НАСТРОЙКИ СТРАНИЦЫ ====================
 st.set_page_config(
-    page_title="Дагестан: Демоэкономический Анализ",
+    page_title="Дагестан: Демоэкономический Анализ-ok",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
