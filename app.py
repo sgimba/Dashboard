@@ -411,11 +411,19 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
     # --- СРАВНИТЕЛЬНАЯ ТАБЛИЦА ---
     st.markdown("#### 📊 Ключевые показатели")
     
-    metrics = ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']
+    # Проверяем какие метрики есть в данных
+    available_metrics = []
+    for var in ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']:
+        if var in df_a.columns and var in df_b.columns:
+            available_metrics.append(var)
+    
+    if not available_metrics:
+        st.error("❌ В данных отсутствуют нужные переменные для анализа")
+        st.stop()
     
     comparison_data = []
-    for var in metrics:
-        if var in df_a.columns and var in df_b.columns:
+    for var in available_metrics:
+        try:
             mean_a = df_a[var].mean()
             mean_b = df_b[var].mean()
             median_a = df_a[var].median()
@@ -431,61 +439,77 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
                 'Разница': format_metric(diff_mean, var),
                 'Разница (%)': f"{diff_pct:+.1f}%"
             })
+        except Exception as e:
+            st.warning(f"⚠️ Ошибка обработки {var}: {e}")
+            continue
     
-    st.dataframe(pd.DataFrame(comparison_data), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(comparison_data), width='stretch', hide_index=True)
     
     # --- ГРАФИКИ РАСПРЕДЕЛЕНИЙ ---
     st.markdown("#### 📊 Распределения")
     
-    var_to_plot = st.selectbox("Показатель для графика:", metrics, format_func=lambda x: VAR_NAMES.get(x, x))
+    if not available_metrics:
+        st.error("❌ Нет доступных метрик для построения графиков")
+        st.stop()
     
-    fig = go.Figure()
+    var_to_plot = st.selectbox("Показатель для графика:", available_metrics, format_func=lambda x: VAR_NAMES.get(x, x))
     
-    fig.add_trace(go.Histogram(
-        x=df_a[var_to_plot],
-        name='Группа A',
-        opacity=0.7,
-        marker_color=COLORS['russia'],
-        nbinsx=30
-    ))
+    if var_to_plot not in df_a.columns or var_to_plot not in df_b.columns:
+        st.error(f"❌ Переменная {var_to_plot} отсутствует в данных")
+        st.stop()
     
-    fig.add_trace(go.Histogram(
-        x=df_b[var_to_plot],
-        name='Группа B',
-        opacity=0.7,
-        marker_color=COLORS['dagestan'],
-        nbinsx=30
-    ))
-    
-    fig.update_layout(
-        barmode='overlay',
-        title=f'Распределение: {VAR_NAMES.get(var_to_plot, var_to_plot)}',
-        xaxis_title=VAR_NAMES.get(var_to_plot, var_to_plot),
-        yaxis_title='Количество',
-        height=400
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # --- BOXPLOT ---
-    st.markdown("#### 📦 Boxplot (медианы и квартили)")
-    
-    boxplot_data = pd.DataFrame({
-        'Группа': ['A'] * len(df_a) + ['B'] * len(df_b),
-        'Значение': list(df_a[var_to_plot]) + list(df_b[var_to_plot])
-    })
-    
-    fig_box = px.box(
-        boxplot_data,
-        x='Группа',
-        y='Значение',
-        color='Группа',
-        color_discrete_map={'A': COLORS['russia'], 'B': COLORS['dagestan']},
-        title=f'{VAR_NAMES.get(var_to_plot, var_to_plot)} - медианы и квартили'
-    )
-    fig_box.update_layout(showlegend=False, height=400)
-    
-    st.plotly_chart(fig_box, use_container_width=True)
+    try:
+        fig = go.Figure()
+        
+        fig.add_trace(go.Histogram(
+            x=df_a[var_to_plot],
+            name='Группа A',
+            opacity=0.7,
+            marker_color=COLORS['russia'],
+            nbinsx=30
+        ))
+        
+        fig.add_trace(go.Histogram(
+            x=df_b[var_to_plot],
+            name='Группа B',
+            opacity=0.7,
+            marker_color=COLORS['dagestan'],
+            nbinsx=30
+        ))
+        
+        fig.update_layout(
+            barmode='overlay',
+            title=f'Распределение: {VAR_NAMES.get(var_to_plot, var_to_plot)}',
+            xaxis_title=VAR_NAMES.get(var_to_plot, var_to_plot),
+            yaxis_title='Количество',
+            height=400
+        )
+        
+        st.plotly_chart(fig, width="stretch")
+        
+        # --- BOXPLOT ---
+        st.markdown("#### 📦 Boxplot (медианы и квартили)")
+        
+        boxplot_data = pd.DataFrame({
+            'Группа': ['A'] * len(df_a) + ['B'] * len(df_b),
+            'Значение': list(df_a[var_to_plot]) + list(df_b[var_to_plot])
+        })
+        
+        fig_box = px.box(
+            boxplot_data,
+            x='Группа',
+            y='Значение',
+            color='Группа',
+            color_discrete_map={'A': COLORS['russia'], 'B': COLORS['dagestan']},
+            title=f'{VAR_NAMES.get(var_to_plot, var_to_plot)} - медианы и квартили'
+        )
+        fig_box.update_layout(showlegend=False, height=400)
+        
+        st.plotly_chart(fig_box, width="stretch")
+        
+    except Exception as e:
+        st.error(f"❌ Ошибка построения графиков: {e}")
+        st.info("💡 Попробуйте выбрать другой показатель или изменить фильтры")
 
 # --- СИМУЛЯТОР 2030 (твой код) ---
 elif page == "🔮 Симулятор 2030":
@@ -568,7 +592,7 @@ elif page == "🔮 Симулятор 2030":
             )
             fig_bar.update_layout(showlegend=False, height=350)
             fig_bar.update_traces(texttemplate='%{x:,.0f} ₽', textposition='outside')
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width="stretch")
             
             st.caption("На этом графике показан *только прирост*. Здесь хорошо видно, какой фактор вносит наибольший вклад.")
 
@@ -586,7 +610,7 @@ elif page == "🔮 Симулятор 2030":
                 totals = {"marker":{"color":COLORS['primary']}}
             ))
             fig_wf.update_layout(title="Общая динамика дохода", height=350)
-            st.plotly_chart(fig_wf, use_container_width=True)
+            st.plotly_chart(fig_wf, width="stretch")
 
 # --- ДЕТЕКТОР СКРЫТОГО (твой код) ---
 elif page == "🕵️ Детектор скрытого":
@@ -726,7 +750,7 @@ elif page == "🗺️ Карта регионов":
         projection_type='mercator', bgcolor='#f8fafc', resolution=50, center=dict(lat=60, lon=90)
     )
     fig.update_layout(height=600, margin=dict(l=0, r=0, t=50, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # --- СРАВНЕНИЕ (твой код) ---
 elif page == "📊 Сравнение":
@@ -745,7 +769,7 @@ elif page == "📊 Сравнение":
     if len(dag_val) > 0:
         fig.add_vline(x=dag_val.values[0], line_dash="dash", line_color=COLORS['dagestan'], annotation_text="Дагестан")
     fig.update_layout(height=800, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # --- ДИНАМИКА (твой код) ---
 elif page == "⏱️ Динамика":
@@ -765,7 +789,7 @@ elif page == "⏱️ Динамика":
         labels={x_metric: VAR_NAMES[x_metric], y_metric: VAR_NAMES[y_metric]}
     )
     fig.update_layout(height=600, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # --- КЛАСТЕРЫ (твой код) ---
 elif page == "🎯 Кластеры":
@@ -781,7 +805,7 @@ elif page == "🎯 Кластеры":
             color='cluster', color_discrete_sequence=CLUSTER_COLORS,
             title='Распределение по кластерам'
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         st.markdown("### 🎯 Дагестан vs Россия")
         dag_clusters = data['clusters'][data['clusters']['ter'] == '82'].groupby('cluster')['count'].sum()
@@ -799,7 +823,7 @@ elif page == "🎯 Кластеры":
         fig.add_trace(go.Bar(name='Дагестан', x=comparison['Кластер'], y=comparison['Дагестан (%)'], marker_color=COLORS['dagestan']))
         fig.add_trace(go.Bar(name='Россия', x=comparison['Кластер'], y=comparison['Россия (%)'], marker_color=COLORS['russia']))
         fig.update_layout(barmode='group', height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with tab2:
         st.markdown("### 🌡️ Тепловая карта характеристик")
@@ -820,7 +844,7 @@ elif page == "🎯 Кластеры":
             y=heatmap_data.columns,
             color_continuous_scale='RdBu_r', aspect="auto"
         )
-        st.plotly_chart(fig_hm, use_container_width=True)
+        st.plotly_chart(fig_hm, width="stretch")
 
 # --- ДАННЫЕ (твой код) ---
 elif page == "📥 Данные":
