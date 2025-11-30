@@ -408,108 +408,121 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
         st.warning("⚠️ Одна из групп пуста. Измените фильтры.")
         st.stop()
     
-    # --- СРАВНИТЕЛЬНАЯ ТАБЛИЦА ---
-    st.markdown("#### 📊 Ключевые показатели")
+    # --- ТАБЫ ДЛЯ РАЗНЫХ ВИДОВ АНАЛИЗА ---
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Базовое сравнение", 
+        "🔬 Статистические тесты", 
+        "🤖 Регрессионный анализ",
+        "📈 Динамика во времени"
+    ])
     
-    # Проверяем какие метрики есть в данных
-    available_metrics = []
-    for var in ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']:
-        if var in df_a.columns and var in df_b.columns:
-            available_metrics.append(var)
+    # ========================================================================
+    # ТАБ 1: БАЗОВОЕ СРАВНЕНИЕ (существующий код)
+    # ========================================================================
+    with tab1:
     
-    if not available_metrics:
-        st.error("❌ В данных отсутствуют нужные переменные для анализа")
-        st.stop()
-    
-    comparison_data = []
-    for var in available_metrics:
+        # --- СРАВНИТЕЛЬНАЯ ТАБЛИЦА ---
+        st.markdown("#### 📊 Ключевые показатели")
+        
+        # Проверяем какие метрики есть в данных
+        available_metrics = []
+        for var in ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']:
+            if var in df_a.columns and var in df_b.columns:
+                available_metrics.append(var)
+        
+        if not available_metrics:
+            st.error("❌ В данных отсутствуют нужные переменные для анализа")
+            st.stop()
+        
+        comparison_data = []
+        for var in available_metrics:
+            try:
+                mean_a = df_a[var].mean()
+                mean_b = df_b[var].mean()
+                median_a = df_a[var].median()
+                median_b = df_b[var].median()
+                
+                diff_mean = mean_a - mean_b
+                diff_pct = (diff_mean / mean_b * 100) if mean_b != 0 else 0
+                
+                comparison_data.append({
+                    'Показатель': VAR_NAMES.get(var, var),
+                    'Группа A (среднее)': format_metric(mean_a, var),
+                    'Группа B (среднее)': format_metric(mean_b, var),
+                    'Разница': format_metric(diff_mean, var),
+                    'Разница (%)': f"{diff_pct:+.1f}%"
+                })
+            except Exception as e:
+                st.warning(f"⚠️ Ошибка обработки {var}: {e}")
+                continue
+        
+        st.dataframe(pd.DataFrame(comparison_data), width='stretch', hide_index=True)
+        
+        # --- ГРАФИКИ РАСПРЕДЕЛЕНИЙ ---
+        st.markdown("#### 📊 Распределения")
+        
+        if not available_metrics:
+            st.error("❌ Нет доступных метрик для построения графиков")
+            st.stop()
+        
+        var_to_plot = st.selectbox("Показатель для графика:", available_metrics, format_func=lambda x: VAR_NAMES.get(x, x))
+        
+        if var_to_plot not in df_a.columns or var_to_plot not in df_b.columns:
+            st.error(f"❌ Переменная {var_to_plot} отсутствует в данных")
+            st.stop()
+        
         try:
-            mean_a = df_a[var].mean()
-            mean_b = df_b[var].mean()
-            median_a = df_a[var].median()
-            median_b = df_b[var].median()
+            fig = go.Figure()
             
-            diff_mean = mean_a - mean_b
-            diff_pct = (diff_mean / mean_b * 100) if mean_b != 0 else 0
+            fig.add_trace(go.Histogram(
+                x=df_a[var_to_plot],
+                name='Группа A',
+                opacity=0.7,
+                marker_color=COLORS['russia'],
+                nbinsx=30
+            ))
             
-            comparison_data.append({
-                'Показатель': VAR_NAMES.get(var, var),
-                'Группа A (среднее)': format_metric(mean_a, var),
-                'Группа B (среднее)': format_metric(mean_b, var),
-                'Разница': format_metric(diff_mean, var),
-                'Разница (%)': f"{diff_pct:+.1f}%"
+            fig.add_trace(go.Histogram(
+                x=df_b[var_to_plot],
+                name='Группа B',
+                opacity=0.7,
+                marker_color=COLORS['dagestan'],
+                nbinsx=30
+            ))
+            
+            fig.update_layout(
+                barmode='overlay',
+                title=f'Распределение: {VAR_NAMES.get(var_to_plot, var_to_plot)}',
+                xaxis_title=VAR_NAMES.get(var_to_plot, var_to_plot),
+                yaxis_title='Количество',
+                height=400
+            )
+            
+            st.plotly_chart(fig, width="stretch")
+            
+            # --- BOXPLOT ---
+            st.markdown("#### 📦 Boxplot (медианы и квартили)")
+            
+            boxplot_data = pd.DataFrame({
+                'Группа': ['A'] * len(df_a) + ['B'] * len(df_b),
+                'Значение': list(df_a[var_to_plot]) + list(df_b[var_to_plot])
             })
+            
+            fig_box = px.box(
+                boxplot_data,
+                x='Группа',
+                y='Значение',
+                color='Группа',
+                color_discrete_map={'A': COLORS['russia'], 'B': COLORS['dagestan']},
+                title=f'{VAR_NAMES.get(var_to_plot, var_to_plot)} - медианы и квартили'
+            )
+            fig_box.update_layout(showlegend=False, height=400)
+            
+            st.plotly_chart(fig_box, width="stretch")
+            
         except Exception as e:
-            st.warning(f"⚠️ Ошибка обработки {var}: {e}")
-            continue
-    
-    st.dataframe(pd.DataFrame(comparison_data), width='stretch', hide_index=True)
-    
-    # --- ГРАФИКИ РАСПРЕДЕЛЕНИЙ ---
-    st.markdown("#### 📊 Распределения")
-    
-    if not available_metrics:
-        st.error("❌ Нет доступных метрик для построения графиков")
-        st.stop()
-    
-    var_to_plot = st.selectbox("Показатель для графика:", available_metrics, format_func=lambda x: VAR_NAMES.get(x, x))
-    
-    if var_to_plot not in df_a.columns or var_to_plot not in df_b.columns:
-        st.error(f"❌ Переменная {var_to_plot} отсутствует в данных")
-        st.stop()
-    
-    try:
-        fig = go.Figure()
-        
-        fig.add_trace(go.Histogram(
-            x=df_a[var_to_plot],
-            name='Группа A',
-            opacity=0.7,
-            marker_color=COLORS['russia'],
-            nbinsx=30
-        ))
-        
-        fig.add_trace(go.Histogram(
-            x=df_b[var_to_plot],
-            name='Группа B',
-            opacity=0.7,
-            marker_color=COLORS['dagestan'],
-            nbinsx=30
-        ))
-        
-        fig.update_layout(
-            barmode='overlay',
-            title=f'Распределение: {VAR_NAMES.get(var_to_plot, var_to_plot)}',
-            xaxis_title=VAR_NAMES.get(var_to_plot, var_to_plot),
-            yaxis_title='Количество',
-            height=400
-        )
-        
-        st.plotly_chart(fig, width="stretch")
-        
-        # --- BOXPLOT ---
-        st.markdown("#### 📦 Boxplot (медианы и квартили)")
-        
-        boxplot_data = pd.DataFrame({
-            'Группа': ['A'] * len(df_a) + ['B'] * len(df_b),
-            'Значение': list(df_a[var_to_plot]) + list(df_b[var_to_plot])
-        })
-        
-        fig_box = px.box(
-            boxplot_data,
-            x='Группа',
-            y='Значение',
-            color='Группа',
-            color_discrete_map={'A': COLORS['russia'], 'B': COLORS['dagestan']},
-            title=f'{VAR_NAMES.get(var_to_plot, var_to_plot)} - медианы и квартили'
-        )
-        fig_box.update_layout(showlegend=False, height=400)
-        
-        st.plotly_chart(fig_box, width="stretch")
-        
-    except Exception as e:
-        st.error(f"❌ Ошибка построения графиков: {e}")
-        st.info("💡 Попробуйте выбрать другой показатель или изменить фильтры")
+            st.error(f"❌ Ошибка построения графиков: {e}")
+            st.info("💡 Попробуйте выбрать другой показатель или изменить фильтры")
 
 # --- СИМУЛЯТОР 2030 (твой код) ---
 elif page == "🔮 Симулятор 2030":
