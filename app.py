@@ -41,6 +41,138 @@ COLORS = {
 CLUSTER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#dc2626', '#8b5cf6']
 
 # ============================================================================
+# СЛОВАРИ НАЗВАНИЙ
+# ============================================================================
+
+# Названия регионов
+REGION_NAMES = {
+    '01': 'Республика Адыгея',
+    '03': 'Республика Башкортостан',
+    '07': 'Кабардино-Балкарская Республика',
+    '12': 'Республика Марий Эл',
+    '18': 'Удмуртская Республика',
+    '26': 'Ставропольский край',
+    '40': 'Калужская область',
+    '45': 'Курганская область',
+    '46': 'Курская область',
+    '60': 'Псковская область',
+    '82': 'Республика Дагестан',
+    '05': 'Республика Дагестан',
+    '16': 'Республика Татарстан',
+    '23': 'Краснодарский край',
+    '28': 'Амурская область',
+    '36': 'Воронежская область',
+    '50': 'Московская область',
+    '61': 'Ростовская область',
+    '63': 'Самарская область',
+    '66': 'Свердловская область',
+    '68': 'Тамбовская область',
+    '77': 'город Москва',
+    '78': 'город Санкт-Петербург',
+    '17': 'Республика Тыва',
+    '20': 'Чеченская Республика',
+    '30': 'Астраханская область',
+}
+
+# Названия переменных (человеческие)
+VAR_NAMES = {
+    'doxodn': 'Среднедушевой доход',
+    'r1v2': 'Средний возраст',
+    'chlico': 'Размер домохозяйства',
+    'food_share': 'Доля расходов на продукты питания',
+    'savings_rate': 'Норма сбережений',
+    'mest_urban_pct': 'Доля городского населения',
+    'pol_female_pct': 'Доля женщин',
+    'income_reconstructed': 'Реконструированный доход (ML)',
+}
+
+# Единицы измерения
+VAR_UNITS = {
+    'doxodn': 'руб.',
+    'r1v2': 'лет',
+    'chlico': 'чел.',
+    'food_share': '%',
+    'savings_rate': '%',
+    'mest_urban_pct': '%',
+    'pol_female_pct': '%',
+    'income_reconstructed': 'руб.',
+}
+
+# ============================================================================
+# ФУНКЦИИ ФОРМАТИРОВАНИЯ
+# ============================================================================
+
+def format_number_ru(value, decimals=0):
+    """
+    Форматирование числа в российский формат:
+    - Разделитель тысяч: пробел (неразрывный)
+    - Десятичный разделитель: запятая
+    
+    Примеры:
+    125651 -> "125 651"
+    36.5 -> "36,5"
+    1234567.89 -> "1 234 567,89"
+    """
+    if pd.isna(value):
+        return "—"
+    
+    # Округляем
+    value = round(value, decimals)
+    
+    # Разделяем на целую и дробную части
+    if decimals > 0:
+        integer_part = int(value)
+        decimal_part = value - integer_part
+        
+        # Форматируем целую часть с пробелами
+        integer_str = f"{integer_part:,}".replace(',', ' ')
+        
+        # Форматируем дробную часть
+        if decimal_part > 0:
+            decimal_str = f"{decimal_part:.{decimals}f}"[2:]  # Убираем "0."
+            return f"{integer_str},{decimal_str}"
+        else:
+            return integer_str
+    else:
+        # Только целое число
+        return f"{int(value):,}".replace(',', ' ')
+
+def format_metric(value, var_name):
+    """Форматирование метрики с учетом типа переменной"""
+    if pd.isna(value):
+        return "—"
+    
+    # Определяем количество десятичных знаков
+    if var_name in ['doxodn', 'income_reconstructed']:
+        # Доходы - целые числа
+        formatted = format_number_ru(value, decimals=0)
+        unit = VAR_UNITS.get(var_name, '')
+        return f"{formatted} {unit}".strip()
+    elif var_name in ['food_share', 'savings_rate', 'mest_urban_pct', 'pol_female_pct']:
+        # Проценты - 1 знак
+        formatted = format_number_ru(value, decimals=1)
+        return f"{formatted}%"
+    elif var_name == 'r1v2':
+        # Возраст - 1 знак
+        formatted = format_number_ru(value, decimals=1)
+        return f"{formatted} лет"
+    elif var_name == 'chlico':
+        # Размер ДХ - 1 знак
+        formatted = format_number_ru(value, decimals=1)
+        return f"{formatted} чел."
+    else:
+        return format_number_ru(value, decimals=1)
+
+def add_region_names(df):
+    """Добавляет названия регионов к датафрейму"""
+    if 'ter' in df.columns:
+        df = df.copy()
+        df['region_name'] = df['ter'].map(REGION_NAMES)
+        # Для регионов без названия - оставляем код
+        df['region_name'] = df['region_name'].fillna('Регион ' + df['ter'].astype(str))
+    return df
+
+# ============================================================================
 # КАСТОМНЫЙ CSS
 # ============================================================================
 
@@ -301,6 +433,10 @@ def load_data():
             if 'ter' in df.columns:
                 df['ter'] = df['ter'].astype(str).str.strip()
         
+        # Добавляем названия регионов
+        regional_stats = add_region_names(regional_stats)
+        cluster_dist = add_region_names(cluster_dist)
+        
         return {
             'stats': regional_stats,
             'clusters': cluster_dist,
@@ -521,21 +657,21 @@ if page == "🏠 Главная":
         with col1:
             st.metric(
                 label="💰 Среднедушевой доход (2023)",
-                value=f"{dag_row['doxodn']:,.0f} ₽",
+                value=format_number_ru(dag_row['doxodn'], decimals=0) + " ₽",
                 delta="Официальные данные"
             )
         
         with col2:
             st.metric(
                 label="👤 Средний возраст",
-                value=f"{dag_row['r1v2']:.1f} лет",
+                value=format_number_ru(dag_row['r1v2'], decimals=1) + " лет",
                 delta=None
             )
         
         with col3:
             st.metric(
                 label="🍞 Доля расходов на еду",
-                value=f"{dag_row['food_share']:.1f}%",
+                value=format_number_ru(dag_row['food_share'], decimals=1) + "%",
                 delta="Индикатор бедности"
             )
         
@@ -546,6 +682,12 @@ if page == "🏠 Главная":
         
         fig = go.Figure()
         
+        # Форматируем значения для hover (российский формат)
+        dag_history_copy = dag_history.copy()
+        dag_history_copy['formatted_doxodn'] = dag_history_copy['doxodn'].apply(
+            lambda x: format_number_ru(x, decimals=0)
+        )
+        
         fig.add_trace(go.Scatter(
             x=dag_history['year'],
             y=dag_history['doxodn'],
@@ -553,11 +695,15 @@ if page == "🏠 Главная":
             name='Дагестан',
             line=dict(color=COLORS['dagestan'], width=3),
             marker=dict(size=10),
-            hovertemplate='<b>Год:</b> %{x}<br><b>Доход:</b> %{y:,.0f} ₽<extra></extra>'
+            customdata=dag_history_copy['formatted_doxodn'],
+            hovertemplate='<b>Год:</b> %{x}<br><b>Доход:</b> %{customdata} ₽<extra></extra>'
         ))
         
         # Добавим среднее по России для сравнения
         russia_avg = data['stats'].groupby('year')['doxodn'].mean().reset_index()
+        russia_avg['formatted_doxodn'] = russia_avg['doxodn'].apply(
+            lambda x: format_number_ru(x, decimals=0)
+        )
         
         fig.add_trace(go.Scatter(
             x=russia_avg['year'],
@@ -566,7 +712,8 @@ if page == "🏠 Главная":
             name='Россия (среднее)',
             line=dict(color=COLORS['russia'], width=2, dash='dash'),
             marker=dict(size=8),
-            hovertemplate='<b>Год:</b> %{x}<br><b>Доход:</b> %{y:,.0f} ₽<extra></extra>'
+            customdata=russia_avg['formatted_doxodn'],
+            hovertemplate='<b>Год:</b> %{x}<br><b>Доход:</b> %{customdata} ₽<extra></extra>'
         ))
         
         fig.update_layout(
@@ -576,6 +723,12 @@ if page == "🏠 Главная":
             hovermode='x unified',
             height=500,
             template='plotly_white'
+        )
+        
+        # Форматируем ось Y в российский формат
+        fig.update_yaxes(
+            tickformat=',',  # Добавляем разделители тысяч
+            separatethousands=True
         )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -600,14 +753,8 @@ elif page == "🗺️ Интерактивная карта":
     with col2:
         metric = st.selectbox(
             "📊 Показатель:",
-            {
-                'doxodn': 'Среднедушевой доход',
-                'r1v2': 'Средний возраст',
-                'food_share': 'Доля расходов на еду (%)',
-                'savings_rate': 'Норма сбережений (%)',
-                'mest_urban_pct': 'Урбанизация (%)',
-                'pol_female_pct': 'Доля женщин (%)'
-            }
+            list(VAR_NAMES.keys()),
+            format_func=lambda x: VAR_NAMES.get(x, x)
         )
     
     # Данные за выбранный год
@@ -616,35 +763,45 @@ elif page == "🗺️ Интерактивная карта":
     if len(df_year) == 0:
         st.warning(f"⚠️ Нет данных за {year} год")
     else:
-        # Создаем scatter map (простая альтернатива choropleth)
-        # Координаты центров регионов (упрощенные)
+        # Координаты центров регионов (примерные)
         region_coords = {
-            '01': (51.7, 45.0),  # Адыгея
-            '03': (54.7, 55.9),  # Башкортостан
-            '07': (60.6, 56.8),  # Кабардино-Балкария
-            '12': (55.8, 49.1),  # Марий Эл
-            '18': (43.3, 45.0),  # Удмуртия
-            '26': (55.0, 82.9),  # Ставропольский край
-            '40': (44.0, 56.3),  # Калужская область
-            '45': (38.0, 55.7),  # Курганская область
-            '46': (42.0, 47.2),  # Курская область
-            '60': (39.7, 47.2),  # Псковская область
-            '82': (47.5, 42.5),  # Дагестан ⭐
-            # Добавь остальные регионы по необходимости
+            '01': (44.6, 39.0),    # Адыгея
+            '03': (55.0, 54.7),    # Башкортостан
+            '07': (43.5, 43.4),    # Кабардино-Балкария
+            '12': (56.6, 47.9),    # Марий Эл
+            '18': (57.0, 53.0),    # Удмуртия
+            '26': (45.0, 43.0),    # Ставропольский край
+            '40': (54.5, 36.2),    # Калужская область
+            '45': (55.4, 65.3),    # Курганская область
+            '46': (51.7, 36.2),    # Курская область
+            '60': (57.8, 28.3),    # Псковская область
+            '82': (42.2, 47.1),    # Дагестан ⭐
+            '05': (42.2, 47.1),    # Дагестан (дубль)
+            '16': (55.8, 49.1),    # Татарстан
+            '23': (45.0, 39.0),    # Краснодарский край
+            '28': (50.3, 127.5),   # Амурская область
+            '36': (51.7, 39.2),    # Воронежская область
+            '50': (55.8, 37.6),    # Московская область
+            '61': (47.2, 39.7),    # Ростовская область
+            '63': (53.2, 50.1),    # Самарская область
+            '66': (56.8, 60.6),    # Свердловская область
+            '68': (52.7, 41.4),    # Тамбовская область
+            '77': (55.75, 37.6),   # Москва
+            '78': (59.9, 30.3),    # Санкт-Петербург
+            '17': (51.7, 94.4),    # Тыва
+            '20': (43.3, 45.7),    # Чечня
+            '30': (46.3, 48.0),    # Астраханская область
         }
         
-        # Создаем датафрейм с координатами
-        df_year['lat'] = df_year['ter'].map(lambda x: region_coords.get(x, (55, 37))[1])
-        df_year['lon'] = df_year['ter'].map(lambda x: region_coords.get(x, (55, 37))[0])
+        # Добавляем координаты
+        df_year['lat'] = df_year['ter'].map(lambda x: region_coords.get(x, (55, 37))[0])
+        df_year['lon'] = df_year['ter'].map(lambda x: region_coords.get(x, (55, 37))[1])
         
-        # Названия регионов (упрощенные)
-        region_names = {
-            '82': 'Дагестан',
-            '01': 'Адыгея',
-            '03': 'Башкортостан',
-            # Добавь остальные
-        }
-        df_year['region_name'] = df_year['ter'].map(lambda x: region_names.get(x, f'Регион {x}'))
+        # Форматируем значения для hover
+        df_year['formatted_value'] = df_year.apply(
+            lambda row: format_metric(row[metric], metric),
+            axis=1
+        )
         
         # Создаем scatter geo
         fig = px.scatter_geo(
@@ -653,11 +810,13 @@ elif page == "🗺️ Интерактивная карта":
             lon='lon',
             size=metric,
             color=metric,
-            hover_name='region_name',
+            hover_name='region_name',  # ← Используем названия регионов!
             hover_data={
                 'lat': False,
                 'lon': False,
-                metric: ':.1f'
+                metric: False,
+                'formatted_value': True,
+                'region_name': False
             },
             color_continuous_scale=[
                 [0, COLORS['russia']],
@@ -665,7 +824,8 @@ elif page == "🗺️ Интерактивная карта":
                 [1, COLORS['dagestan']]
             ],
             size_max=50,
-            title=f'{list({metric: "..."}.keys())[0]} по регионам России ({year})'
+            title=f'{VAR_NAMES.get(metric, metric)} по регионам России ({year})',
+            labels={'formatted_value': VAR_NAMES.get(metric, metric)}
         )
         
         fig.update_geos(
@@ -674,11 +834,16 @@ elif page == "🗺️ Интерактивная карта":
             countrycolor='lightgray',
             showsubunits=True,
             subunitcolor='white',
-            center=dict(lat=60, lon=60),
-            projection_scale=2.5
+            center=dict(lat=58, lon=65),
+            projection_scale=2.2
         )
         
-        fig.update_layout(height=600)
+        # ИСПРАВЛЕНИЕ: Прямоугольная карта (не квадрат!)
+        fig.update_layout(
+            height=700,  # ← Увеличиваем высоту
+            width=None,  # ← Auto width (растягивается на весь контейнер)
+            margin=dict(l=0, r=0, t=50, b=0)
+        )
         
         st.plotly_chart(fig, use_container_width=True)
         
@@ -691,13 +856,15 @@ elif page == "🗺️ Интерактивная карта":
             st.markdown("#### ⬆️ ТОП-5 регионов")
             top5 = df_year.nlargest(5, metric)[['region_name', metric]]
             for idx, row in top5.iterrows():
-                st.markdown(f"**{row['region_name']}**: {row[metric]:.1f}")
+                formatted_val = format_metric(row[metric], metric)
+                st.markdown(f"**{row['region_name']}**: {formatted_val}")
         
         with col2:
             st.markdown("#### ⬇️ НИЗ-5 регионов")
             bottom5 = df_year.nsmallest(5, metric)[['region_name', metric]]
             for idx, row in bottom5.iterrows():
-                st.markdown(f"**{row['region_name']}**: {row[metric]:.1f}")
+                formatted_val = format_metric(row[metric], metric)
+                st.markdown(f"**{row['region_name']}**: {formatted_val}")
 
 # Продолжение следует...
 
@@ -720,30 +887,26 @@ elif page == "📊 Сравнение регионов":
     if len(df_year) == 0:
         st.warning(f"⚠️ Нет данных за {year} год")
     else:
-        # Добавляем названия регионов
-        df_year['region_name'] = df_year['ter'].apply(lambda x: f'Регион {x}')
-        df_year.loc[df_year['ter'] == '82', 'region_name'] = 'Дагестан'
-        
         # Мультивыбор показателей
-        metrics_options = {
-            'doxodn': 'Среднедушевой доход',
-            'r1v2': 'Средний возраст',
-            'chlico': 'Размер домохозяйства',
-            'food_share': 'Доля расходов на еду (%)',
-            'savings_rate': 'Норма сбережений (%)'
-        }
-        
         selected_metric = st.selectbox(
             "📊 Показатель для сравнения:",
-            list(metrics_options.keys()),
-            format_func=lambda x: metrics_options[x]
+            list(VAR_NAMES.keys()),
+            format_func=lambda x: VAR_NAMES.get(x, x)
+        )
+        
+        # Сортируем по показателю
+        df_year_sorted = df_year.sort_values(selected_metric, ascending=True)
+        
+        # Форматируем значения для текста на графике
+        df_year_sorted['formatted_value'] = df_year_sorted[selected_metric].apply(
+            lambda x: format_number_ru(x, decimals=1 if selected_metric not in ['doxodn', 'income_reconstructed'] else 0)
         )
         
         # Горизонтальный bar chart
         fig = px.bar(
-            df_year.sort_values(selected_metric, ascending=True),
+            df_year_sorted,
             x=selected_metric,
-            y='region_name',
+            y='region_name',  # ← Используем названия!
             orientation='h',
             color=selected_metric,
             color_continuous_scale=[
@@ -751,8 +914,17 @@ elif page == "📊 Сравнение регионов":
                 [0.5, COLORS['warning']],
                 [1, COLORS['dagestan']]
             ],
-            title=f'{metrics_options[selected_metric]} по регионам ({year})',
-            labels={selected_metric: metrics_options[selected_metric]}
+            title=f'{VAR_NAMES.get(selected_metric, selected_metric)} по регионам ({year})',
+            labels={selected_metric: VAR_NAMES.get(selected_metric, selected_metric)},
+            hover_data={'formatted_value': True, selected_metric: False, 'region_name': False},
+            custom_data=['formatted_value']
+        )
+        
+        # Обновляем hover template
+        fig.update_traces(
+            hovertemplate='<b>%{y}</b><br>' + 
+                          f'{VAR_NAMES.get(selected_metric, selected_metric)}: ' +
+                          '%{customdata[0]}<extra></extra>'
         )
         
         # Highlight Дагестан
@@ -781,16 +953,16 @@ elif page == "📊 Сравнение регионов":
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Среднее", f"{df_year[selected_metric].mean():.1f}")
+            st.metric("Среднее", format_metric(df_year[selected_metric].mean(), selected_metric))
         
         with col2:
-            st.metric("Медиана", f"{df_year[selected_metric].median():.1f}")
+            st.metric("Медиана", format_metric(df_year[selected_metric].median(), selected_metric))
         
         with col3:
-            st.metric("Минимум", f"{df_year[selected_metric].min():.1f}")
+            st.metric("Минимум", format_metric(df_year[selected_metric].min(), selected_metric))
         
         with col4:
-            st.metric("Максимум", f"{df_year[selected_metric].max():.1f}")
+            st.metric("Максимум", format_metric(df_year[selected_metric].max(), selected_metric))
         
         # Дагестан vs Россия
         if len(df_year[df_year['ter'] == '82']) > 0:
@@ -805,19 +977,19 @@ elif page == "📊 Сравнение регионов":
             with col1:
                 st.metric(
                     "Дагестан",
-                    f"{dag_val:.1f}"
+                    format_metric(dag_val, selected_metric)
                 )
             
             with col2:
                 st.metric(
                     "Россия (среднее)",
-                    f"{russia_avg:.1f}"
+                    format_metric(russia_avg, selected_metric)
                 )
             
             with col3:
                 st.metric(
                     "Разница",
-                    f"{diff:+.1f}%",
+                    f"{format_number_ru(diff, decimals=1)}%",
                     delta=f"{'выше' if diff > 0 else 'ниже'} среднего"
                 )
 
@@ -840,31 +1012,18 @@ elif page == "⏱️ Динамика 2016-2023":
         x_metric = st.selectbox(
             "Ось X:",
             ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate'],
-            format_func=lambda x: {
-                'doxodn': 'Доход',
-                'r1v2': 'Возраст',
-                'chlico': 'Размер ДХ',
-                'food_share': 'Доля еды (%)',
-                'savings_rate': 'Сбережения (%)'
-            }[x]
+            format_func=lambda x: VAR_NAMES.get(x, x).split()[0]  # Короткие названия
         )
     
     with col2:
         y_metric = st.selectbox(
             "Ось Y:",
             ['savings_rate', 'food_share', 'doxodn', 'r1v2', 'chlico'],
-            format_func=lambda x: {
-                'doxodn': 'Доход',
-                'r1v2': 'Возраст',
-                'chlico': 'Размер ДХ',
-                'food_share': 'Доля еды (%)',
-                'savings_rate': 'Сбережения (%)'
-            }[x]
+            format_func=lambda x: VAR_NAMES.get(x, x).split()[0]  # Короткие названия
         )
     
     # Подготовка данных
     df_anim = data['stats'].copy()
-    df_anim['region_name'] = df_anim['ter'].apply(lambda x: 'Дагестан' if x == '82' else f'Регион {x}')
     df_anim['is_dagestan'] = df_anim['ter'] == '82'
     
     # Анимированный scatter
@@ -876,7 +1035,7 @@ elif page == "⏱️ Динамика 2016-2023":
         animation_group='ter',
         size='chlico',
         color='is_dagestan',
-        hover_name='region_name',
+        hover_name='region_name',  # ← Используем названия регионов из данных!
         color_discrete_map={
             True: COLORS['dagestan'],
             False: COLORS['russia']
@@ -884,20 +1043,8 @@ elif page == "⏱️ Динамика 2016-2023":
         range_x=[df_anim[x_metric].min() * 0.9, df_anim[x_metric].max() * 1.1],
         range_y=[df_anim[y_metric].min() * 0.9, df_anim[y_metric].max() * 1.1],
         labels={
-            x_metric: {
-                'doxodn': 'Доход',
-                'r1v2': 'Возраст',
-                'chlico': 'Размер ДХ',
-                'food_share': 'Доля еды (%)',
-                'savings_rate': 'Сбережения (%)'
-            }.get(x_metric, x_metric),
-            y_metric: {
-                'doxodn': 'Доход',
-                'r1v2': 'Возраст',
-                'chlico': 'Размер ДХ',
-                'food_share': 'Доля еды (%)',
-                'savings_rate': 'Сбережения (%)'
-            }.get(y_metric, y_metric)
+            x_metric: VAR_NAMES.get(x_metric, x_metric),
+            y_metric: VAR_NAMES.get(y_metric, y_metric)
         }
     )
     
@@ -916,12 +1063,7 @@ elif page == "⏱️ Динамика 2016-2023":
     metric_analysis = st.selectbox(
         "Показатель для анализа роста:",
         ['doxodn', 'r1v2', 'food_share', 'savings_rate'],
-        format_func=lambda x: {
-            'doxodn': 'Среднедушевой доход',
-            'r1v2': 'Средний возраст',
-            'food_share': 'Доля расходов на еду',
-            'savings_rate': 'Норма сбережений'
-        }[x],
+        format_func=lambda x: VAR_NAMES.get(x, x),
         key='growth_metric'
     )
     
@@ -951,22 +1093,36 @@ elif page == "⏱️ Динамика 2016-2023":
         
         with col1:
             st.markdown("### 🎯 Дагестан")
-            st.metric(label="2016", value=f"{dag_2016:.1f}")
-            st.metric(label="2023", value=f"{dag_2023:.1f}", delta=f"{dag_growth_pct:+.1f}%")
-            st.metric(label="Абсолютный рост", value=f"{dag_growth_abs:+.1f}")
+            st.metric(label="2016", value=format_metric(dag_2016, metric_analysis))
+            st.metric(
+                label="2023", 
+                value=format_metric(dag_2023, metric_analysis),
+                delta=f"{format_number_ru(dag_growth_pct, decimals=1)}%"
+            )
+            st.metric(
+                label="Абсолютный рост",
+                value=format_metric(dag_growth_abs, metric_analysis)
+            )
         
         with col2:
             st.markdown("### 🇷🇺 Россия (среднее)")
-            st.metric(label="2016", value=f"{rus_2016:.1f}")
-            st.metric(label="2023", value=f"{rus_2023:.1f}", delta=f"{rus_growth_pct:+.1f}%")
-            st.metric(label="Абсолютный рост", value=f"{rus_growth_abs:+.1f}")
+            st.metric(label="2016", value=format_metric(rus_2016, metric_analysis))
+            st.metric(
+                label="2023",
+                value=format_metric(rus_2023, metric_analysis),
+                delta=f"{format_number_ru(rus_growth_pct, decimals=1)}%"
+            )
+            st.metric(
+                label="Абсолютный рост",
+                value=format_metric(rus_growth_abs, metric_analysis)
+            )
         
         with col3:
             st.markdown("### ⚖️ Разница темпов")
             diff_pct = dag_growth_pct - rus_growth_pct
             st.metric(
                 label="Превышение темпа роста",
-                value=f"{diff_pct:+.1f}%",
+                value=f"{format_number_ru(diff_pct, decimals=1)}%",
                 delta="быстрее" if diff_pct > 0 else "медленнее"
             )
 
