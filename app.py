@@ -198,7 +198,7 @@ def load_full_data():
         # Формат: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
         # Нужен FILE_ID
         
-        file_id = "YOUR_FILE_ID_HERE"  # ← ЗАМЕНИ НА СВОЙ ID
+        file_id = "14HMWkhVlIgNExyAv93koCd98fULe3sZN"  # ← ЗАМЕНИ НА СВОЙ ID
         download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
         
         with st.spinner("⏳ Загрузка полной базы из Google Drive (245 МБ)..."):
