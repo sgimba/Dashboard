@@ -181,7 +181,7 @@ def load_data():
 def load_full_data():
     """Загрузка полной базы для детального анализа"""
     try:
-        # Вариант 1: Локальный файл (если загружен на GitHub LFS)
+        # Вариант 1: Локальный файл
         local_path = Path('data') / 'annual_24regions_2016_2023_WITH_CLUSTERS_FULL.pkl'
         if local_path.exists():
             df = pd.read_pickle(local_path)
@@ -189,34 +189,36 @@ def load_full_data():
             df = add_region_names(df)
             return df
         
-        # Вариант 2: Загрузка из Google Drive
-        import requests
-        import io
+        # Вариант 2: Загрузка из Google Drive через gdown
+        try:
+            import gdown
+        except ImportError:
+            st.error("❌ Библиотека gdown не установлена. Установите: pip install gdown")
+            st.info("💡 Альтернатива: Скачайте pkl вручную и положите в папку data/")
+            return None
         
-        # ВАЖНО: Замени на свою публичную ссылку!
-        # Инструкция получения: Google Drive → файл → Share → Anyone with the link → Copy link
-        # Формат: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-        # Нужен FILE_ID
+        # FILE_ID из твоей ссылки
+        file_id = "14HMWkhVlIgNExyAv93koCd98fULe3sZN"
+        url = f"https://drive.google.com/uc?id={file_id}"
+        output_path = "temp_full_data.pkl"
         
-        file_id = "14HMWkhVlIgNExyAv93koCd98fULe3sZN"  # ← ЗАМЕНИ НА СВОЙ ID
-        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        
-        with st.spinner("⏳ Загрузка полной базы из Google Drive (245 МБ)..."):
-            response = requests.get(download_url)
+        with st.spinner("⏳ Загрузка полной базы из Google Drive (245 МБ, ~2 минуты)..."):
+            gdown.download(url, output_path, quiet=False)
             
-            if response.status_code == 200:
-                df = pd.read_pickle(io.BytesIO(response.content))
-                df['ter'] = df['ter'].astype(str).str.strip()
-                df = add_region_names(df)
-                st.success("✅ База загружена!")
-                return df
-            else:
-                st.error(f"Ошибка загрузки: HTTP {response.status_code}")
-                return None
+            df = pd.read_pickle(output_path)
+            df['ter'] = df['ter'].astype(str).str.strip()
+            df = add_region_names(df)
+            
+            # Удаляем временный файл
+            import os
+            os.remove(output_path)
+            
+            st.success("✅ База загружена (330k записей)!")
+            return df
         
     except Exception as e:
         st.warning(f"Полная база недоступна: {e}")
-        st.info("💡 Инструкция: Загрузите pkl на Google Drive → Откройте доступ 'Anyone with link' → Замените FILE_ID в коде")
+        st.info("💡 Решение: Скачайте pkl с Google Drive и загрузите в GitHub LFS или положите в папку data/")
         return None
 
 data = load_data()
