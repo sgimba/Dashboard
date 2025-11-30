@@ -266,7 +266,7 @@ if page == "🏠 Главная":
         </div>
         """, unsafe_allow_html=True)
 
-# --- НОВЫЙ СИМУЛЯТОР ---
+# --- НОВЫЙ СИМУЛЯТОР (УЛУЧШЕННАЯ ВИЗУАЛИЗАЦИЯ) ---
 elif page == "🔮 Симулятор 2030 (NEW)":
     st.markdown("## 🔮 Сценарное моделирование развития")
     
@@ -274,69 +274,110 @@ elif page == "🔮 Симулятор 2030 (NEW)":
     <div class="finding-box" style="margin-top:0;">
         <div class="finding-title">ℹ️ Как работает эта модель?</div>
         <div style="color: #475569; margin-top: 0.5rem;">
-        Мы моделируем влияние трех фундаментальных факторов на экономику Дагестана к 2030 году.
-        Двигайте ползунки ниже, чтобы увидеть, как урбанизация и выход из тени меняют доходы региона.
+        Мы моделируем влияние трех факторов на экономику к 2030 году.
+        Поскольку базовый доход велик, малые изменения могут быть плохо видны на общем графике.
+        Поэтому мы добавили <b>детальный график "Драйверы роста"</b>, чтобы вы видели вклад каждого рубля.
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2 = st.columns([1, 2])
+    col_params, col_charts = st.columns([1, 2])
     
-    with col1:
+    with col_params:
         st.markdown("### 🎛️ Ввод параметров")
         
-        # Просто используем контейнеры без HTML оберток, чтобы не было пустых дыр
         with st.container(border=True):
             st.markdown("**1. Урбанизация**")
-            urban_delta = st.slider("Сдвиг город/село", -10, 20, 0, format="%+d%%")
-            st.caption("Миграция из сел в города. Повышает производительность.")
+            urban_delta = st.slider("Сдвиг город/село", -10, 20, 5, format="%+d%%")
+            st.caption("Миграция в города повышает производительность труда.")
         
         with st.container(border=True):
             st.markdown("**2. Обеление экономики**")
-            shadow_delta = st.slider("Легализация тени", 0, 50, 0, format="%d%%")
-            st.caption("Вывод скрытых доходов (256%) в официальное поле.")
+            shadow_delta = st.slider("Легализация тени", 0, 50, 10, format="%d%%")
+            st.caption("Вывод части скрытых доходов (256%) в официальное поле.")
         
         with st.container(border=True):
             st.markdown("**3. Демография**")
-            family_delta = st.slider("Размер семьи", -20, 20, 0, format="%+d%%")
-            st.caption("Снижение размера семьи увеличивает доход на душу.")
+            family_delta = st.slider("Размер семьи", -20, 20, -5, format="%+d%%")
+            st.caption("Уменьшение размера семьи увеличивает доход на душу.")
         
-    with col2:
-        # Логика модели
+    with col_charts:
+        # --- РАСЧЕТЫ ---
         base_dag = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == 2023)].iloc[0]
         base_income = base_dag['doxodn']
         
+        # Считаем абсолютные вклады каждого фактора (в рублях)
+        # 1. Эффект урбанизации
         urb_factor = 1 + (urban_delta * 0.008)
+        urb_rub = base_income * (urb_factor - 1)
+        
+        # 2. Эффект демографии (применяется к уже урбанизированному доходу)
         fam_factor = 1 - (family_delta * 0.01)
+        # Считаем чистый вклад демографии: (База + Урб) * Фам - (База + Урб)
+        base_plus_urb = base_income + urb_rub
+        fam_rub = (base_plus_urb * fam_factor) - base_plus_urb
+        
+        # 3. Эффект обеления
         hidden_income_pool = base_income * 2.56 
-        legalized_sum = hidden_income_pool * (shadow_delta / 100)
+        shadow_rub = hidden_income_pool * (shadow_delta / 100)
         
-        organic_growth = base_income * urb_factor * fam_factor
-        new_income = organic_growth + legalized_sum
-        real_growth_pct = ((new_income - base_income) / base_income) * 100
+        # Итог
+        total_growth = urb_rub + fam_rub + shadow_rub
+        new_income = base_income + total_growth
+        real_growth_pct = (total_growth / base_income) * 100
         
-        st.markdown("### 📊 Результаты моделирования")
+        # --- МЕТРИКИ ---
+        st.markdown("### 📊 Результаты")
         
         m1, m2, m3 = st.columns(3)
         with m1: st.metric("База 2023", format_metric(base_income, 'doxodn'))
         with m2: st.metric("Прогноз 2030", format_metric(new_income, 'doxodn'), delta=f"{real_growth_pct:.1f}%")
-        with m3: st.metric("Эффект обеления", f"+{format_number_ru(legalized_sum)} руб")
+        with m3: st.metric("Чистый прирост", f"+{format_number_ru(total_growth)} руб")
 
-        fig = go.Figure(go.Waterfall(
-            name = "20", orientation = "v",
-            measure = ["relative", "relative", "relative", "relative", "total"],
-            x = ["2023 (Факт)", "Эффект Урбанизации", "Демогр. эффект", "Вывод из тени", "2030 (Прогноз)"],
-            textposition = "outside",
-            text = [f"{int(x/1000)}k" for x in [base_income, base_income*(urb_factor-1), base_income*(fam_factor-1)*urb_factor, legalized_sum, new_income]],
-            y = [base_income, base_income * (urb_factor - 1), base_income * (fam_factor - 1) * urb_factor, legalized_sum, new_income],
-            connector = {"line":{"color":"#cbd5e1"}},
-            decreasing = {"marker":{"color":COLORS['warning']}},
-            increasing = {"marker":{"color":COLORS['success']}},
-            totals = {"marker":{"color":COLORS['primary']}}
-        ))
+        # --- ГРАФИКИ (ТАБЫ ДЛЯ НАГЛЯДНОСТИ) ---
+        tab_drivers, tab_waterfall = st.tabs(["🔍 Драйверы роста (Детально)", "🌊 Общая картина (Waterfall)"])
         
-        fig.update_layout(title="За счет чего вырастет доход?", height=450)
-        st.plotly_chart(fig, use_container_width=True)
+        with tab_drivers:
+            # График только изменений (чтобы было видно разницу)
+            drivers_df = pd.DataFrame({
+                'Фактор': ['Урбанизация', 'Демография', 'Обеление'],
+                'Вклад (руб)': [urb_rub, fam_rub, shadow_rub],
+                'Color': [COLORS['russia'], COLORS['warning'], COLORS['success']]
+            })
+            
+            fig_bar = px.bar(
+                drivers_df, 
+                y='Фактор', 
+                x='Вклад (руб)', 
+                orientation='h',
+                text_auto='.0f',
+                title="Из чего складывается рост дохода?",
+                color='Фактор',
+                color_discrete_sequence=[COLORS['russia'], COLORS['warning'], COLORS['success']]
+            )
+            fig_bar.update_layout(showlegend=False, height=350)
+            fig_bar.update_traces(texttemplate='%{x:,.0f} ₽', textposition='outside')
+            st.plotly_chart(fig_bar, use_container_width=True)
+            
+            st.caption("На этом графике показан *только прирост*. Здесь хорошо видно, какой фактор вносит наибольший вклад.")
+
+        with tab_waterfall:
+            # Классический Waterfall (общий масштаб)
+            fig_wf = go.Figure(go.Waterfall(
+                name = "20", orientation = "v",
+                measure = ["relative", "relative", "relative", "relative", "total"],
+                x = ["2023", "Урбанизация", "Демография", "Обеление", "2030"],
+                textposition = "outside",
+                # Форматируем текст, чтобы тысячи были видны (k)
+                text = [f"{int(x/1000)}k" for x in [base_income, urb_rub, fam_rub, shadow_rub, new_income]],
+                y = [base_income, urb_rub, fam_rub, shadow_rub, new_income],
+                connector = {"line":{"color":"#cbd5e1"}},
+                decreasing = {"marker":{"color":COLORS['warning']}},
+                increasing = {"marker":{"color":COLORS['success']}},
+                totals = {"marker":{"color":COLORS['primary']}}
+            ))
+            fig_wf.update_layout(title="Общая динамика дохода", height=350)
+            st.plotly_chart(fig_wf, use_container_width=True)
 
 # --- НОВЫЙ ДЕТЕКТОР ---
 elif page == "🕵️ Детектор скрытого (NEW)":
