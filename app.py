@@ -901,20 +901,24 @@ elif page == "👥 Профили кластеров":
         st.markdown("#### 🎯 Дагестан: Распределение кластеров")
         
         dag_dist = dist_with_names[dist_with_names['ter'] == '82'][['cluster', 'count']].copy()
-        dag_dist['percentage'] = (dag_dist['count'] / dag_dist['count'].sum() * 100).round(1)
         
-        fig = px.pie(
-            dag_dist,
-            values='count',
-            names='cluster',
-            title='Распределение кластеров в Дагестане',
-            hole=0.4,
-            labels={'cluster': 'Кластер', 'count': 'Количество'}
-        )
-        
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-        
-        st.plotly_chart(fig, use_container_width=True)
+        if len(dag_dist) == 0:
+            st.warning("⚠️ Нет данных по распределению кластеров в Дагестане")
+        else:
+            dag_dist['percentage'] = (dag_dist['count'] / dag_dist['count'].sum() * 100).round(1)
+            
+            fig = px.pie(
+                dag_dist,
+                values='count',
+                names='cluster',
+                title='Распределение кластеров в Дагестане',
+                hole=0.4,
+                labels={'cluster': 'Кластер', 'count': 'Количество'}
+            )
+            
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            
+            st.plotly_chart(fig, use_container_width=True)
 
 # ==================== КОРРЕЛЯЦИИ ====================
 elif page == "🔗 Корреляции":
