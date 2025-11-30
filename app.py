@@ -425,15 +425,17 @@ elif page == "🗺️ Карта регионов":
         }
     )
     
-    # Добавляем линию Дагестана
-    dag_value = df_year[df_year['ter'] == '82'][metric].values[0]
-    fig.add_hline(
-        y=dag_value,
-        line_dash="dash",
-        line_color="red",
-        annotation_text="Дагестан",
-        annotation_position="right"
-    )
+    # Добавляем линию Дагестана (с защитой)
+    dag_data_for_line = df_year[df_year['ter'] == '82'][metric]
+    if len(dag_data_for_line) > 0:
+        dag_value = dag_data_for_line.values[0]
+        fig.add_hline(
+            y=dag_value,
+            line_dash="dash",
+            line_color="red",
+            annotation_text="Дагестан",
+            annotation_position="right"
+        )
     
     fig.update_layout(height=500, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
@@ -693,72 +695,82 @@ elif page == "⏱️ Динамика 2016-2023":
     st.markdown("---")
     st.subheader("📈 Анализ роста (2016 → 2023)")
     
-    dag_2016 = dag_data[dag_data['year'] == 2016][metric].values[0]
-    dag_2023 = dag_data[dag_data['year'] == 2023][metric].values[0]
-    dag_growth_abs = dag_2023 - dag_2016
-    dag_growth_pct = ((dag_2023 - dag_2016) / dag_2016 * 100)
+    # Получаем данные с защитой
+    dag_2016_data = dag_data[dag_data['year'] == 2016][metric]
+    dag_2023_data = dag_data[dag_data['year'] == 2023][metric]
+    rus_2016_data = rus_data[rus_data['year'] == 2016][metric]
+    rus_2023_data = rus_data[rus_data['year'] == 2023][metric]
     
-    rus_2016 = rus_data[rus_data['year'] == 2016][metric].values[0]
-    rus_2023 = rus_data[rus_data['year'] == 2023][metric].values[0]
-    rus_growth_abs = rus_2023 - rus_2016
-    rus_growth_pct = ((rus_2023 - rus_2016) / rus_2016 * 100)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("### 🎯 Дагестан")
-        st.metric(
-            label="2016",
-            value=f"{dag_2016:.1f}"
-        )
-        st.metric(
-            label="2023",
-            value=f"{dag_2023:.1f}",
-            delta=f"{dag_growth_pct:+.1f}%"
-        )
-        st.metric(
-            label="Абсолютный рост",
-            value=f"{dag_growth_abs:+.1f}"
-        )
-    
-    with col2:
-        st.markdown("### 🇷🇺 Россия")
-        st.metric(
-            label="2016",
-            value=f"{rus_2016:.1f}"
-        )
-        st.metric(
-            label="2023",
-            value=f"{rus_2023:.1f}",
-            delta=f"{rus_growth_pct:+.1f}%"
-        )
-        st.metric(
-            label="Абсолютный рост",
-            value=f"{rus_growth_abs:+.1f}"
-        )
-    
-    with col3:
-        st.markdown("### 📊 Сравнение")
-        diff_growth_pct = dag_growth_pct - rus_growth_pct
-        st.metric(
-            label="Разница темпов роста",
-            value=f"{diff_growth_pct:+.1f} п.п.",
-            delta="быстрее" if diff_growth_pct > 0 else "медленнее"
-        )
+    # Проверяем наличие данных
+    if len(dag_2016_data) == 0 or len(dag_2023_data) == 0 or len(rus_2016_data) == 0 or len(rus_2023_data) == 0:
+        st.warning("⚠️ Недостаточно данных для анализа роста (нужны данные за 2016 и 2023)")
+    else:
+        dag_2016 = dag_2016_data.values[0]
+        dag_2023 = dag_2023_data.values[0]
+        dag_growth_abs = dag_2023 - dag_2016
+        dag_growth_pct = ((dag_2023 - dag_2016) / dag_2016 * 100)
         
-        gap_2016 = ((dag_2016 - rus_2016) / rus_2016 * 100)
-        gap_2023 = ((dag_2023 - rus_2023) / rus_2023 * 100)
-        gap_change = gap_2023 - gap_2016
+        rus_2016 = rus_2016_data.values[0]
+        rus_2023 = rus_2023_data.values[0]
+        rus_growth_abs = rus_2023 - rus_2016
+        rus_growth_pct = ((rus_2023 - rus_2016) / rus_2016 * 100)
         
-        st.metric(
-            label="Разрыв в 2016",
-            value=f"{gap_2016:+.1f}%"
-        )
-        st.metric(
-            label="Разрыв в 2023",
-            value=f"{gap_2023:+.1f}%",
-            delta=f"{gap_change:+.1f} п.п."
-        )
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("### 🎯 Дагестан")
+            st.metric(
+                label="2016",
+                value=f"{dag_2016:.1f}"
+            )
+            st.metric(
+                label="2023",
+                value=f"{dag_2023:.1f}",
+                delta=f"{dag_growth_pct:+.1f}%"
+            )
+            st.metric(
+                label="Абсолютный рост",
+                value=f"{dag_growth_abs:+.1f}"
+            )
+        
+        with col2:
+            st.markdown("### 🇷🇺 Россия")
+            st.metric(
+                label="2016",
+                value=f"{rus_2016:.1f}"
+            )
+            st.metric(
+                label="2023",
+                value=f"{rus_2023:.1f}",
+                delta=f"{rus_growth_pct:+.1f}%"
+            )
+            st.metric(
+                label="Абсолютный рост",
+                value=f"{rus_growth_abs:+.1f}"
+            )
+        
+        with col3:
+            st.markdown("### 📊 Сравнение")
+            diff_growth_pct = dag_growth_pct - rus_growth_pct
+            st.metric(
+                label="Разница темпов роста",
+                value=f"{diff_growth_pct:+.1f} п.п.",
+                delta="быстрее" if diff_growth_pct > 0 else "медленнее"
+            )
+            
+            gap_2016 = ((dag_2016 - rus_2016) / rus_2016 * 100)
+            gap_2023 = ((dag_2023 - rus_2023) / rus_2023 * 100)
+            gap_change = gap_2023 - gap_2016
+            
+            st.metric(
+                label="Разрыв в 2016",
+                value=f"{gap_2016:+.1f}%"
+            )
+            st.metric(
+                label="Разрыв в 2023",
+                value=f"{gap_2023:+.1f}%",
+                delta=f"{gap_change:+.1f} п.п."
+            )
     
     # Таблица по годам
     st.markdown("---")
