@@ -1,6 +1,6 @@
 """
 🚀 ВАУ-ДАШБОРД ДЛЯ РНФ № 25-28-20473
-Версия 5.2 - Исправленная логика детектора и дизайн
+Версия 6.0 - Добавлен раздел "Аналитика подгрупп"
 """
 
 import streamlit as st
@@ -177,6 +177,48 @@ def load_data():
         st.error(f"Ошибка загрузки: {e}")
         return None
 
+@st.cache_data
+def load_full_data():
+    """Загрузка полной базы для детального анализа"""
+    try:
+        # Вариант 1: Локальный файл (если загружен на GitHub LFS)
+        local_path = Path('data') / 'annual_24regions_2016_2023_WITH_CLUSTERS_FULL.pkl'
+        if local_path.exists():
+            df = pd.read_pickle(local_path)
+            df['ter'] = df['ter'].astype(str).str.strip()
+            df = add_region_names(df)
+            return df
+        
+        # Вариант 2: Загрузка из Google Drive
+        import requests
+        import io
+        
+        # ВАЖНО: Замени на свою публичную ссылку!
+        # Инструкция получения: Google Drive → файл → Share → Anyone with the link → Copy link
+        # Формат: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+        # Нужен FILE_ID
+        
+        file_id = "YOUR_FILE_ID_HERE"  # ← ЗАМЕНИ НА СВОЙ ID
+        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        with st.spinner("⏳ Загрузка полной базы из Google Drive (245 МБ)..."):
+            response = requests.get(download_url)
+            
+            if response.status_code == 200:
+                df = pd.read_pickle(io.BytesIO(response.content))
+                df['ter'] = df['ter'].astype(str).str.strip()
+                df = add_region_names(df)
+                st.success("✅ База загружена!")
+                return df
+            else:
+                st.error(f"Ошибка загрузки: HTTP {response.status_code}")
+                return None
+        
+    except Exception as e:
+        st.warning(f"Полная база недоступна: {e}")
+        st.info("💡 Инструкция: Загрузите pkl на Google Drive → Откройте доступ 'Anyone with link' → Замените FILE_ID в коде")
+        return None
+
 data = load_data()
 if data is None: st.stop()
 
@@ -190,8 +232,9 @@ with st.sidebar:
         "Выберите раздел:",
         [
             "🏠 Главная",
-            "🔮 Симулятор 2030 (NEW)",
-            "🕵️ Детектор скрытого (NEW)",
+            "🔍 Аналитика подгрупп (NEW)",
+            "🔮 Симулятор 2030",
+            "🕵️ Детектор скрытого",
             "🗺️ Карта регионов",
             "📊 Сравнение",
             "⏱️ Динамика",
@@ -266,8 +309,184 @@ if page == "🏠 Главная":
         </div>
         """, unsafe_allow_html=True)
 
-# --- НОВЫЙ СИМУЛЯТОР (УЛУЧШЕННАЯ ВИЗУАЛИЗАЦИЯ) ---
-elif page == "🔮 Симулятор 2030 (NEW)":
+# --- НОВЫЙ: АНАЛИТИКА ПОДГРУПП ---
+elif page == "🔍 Аналитика подгрупп (NEW)":
+    st.markdown("## 🔍 Детальный анализ подгрупп населения")
+    
+    st.markdown("""
+    <div class="finding-box" style="margin-top:0;">
+        <div class="finding-title">📊 Сравнительный анализ</div>
+        <div style="color: #475569; margin-top: 0.5rem;">
+        Этот раздел работает с <b>полной базой (330k наблюдений)</b> и позволяет сравнивать подгруппы населения по любым характеристикам.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Загружаем полную базу
+    df_full = load_full_data()
+    
+    if df_full is None:
+        st.error("❌ Полная база данных не найдена. Загрузите файл `annual_24regions_2016_2023_WITH_CLUSTERS_FULL.pkl` в папку `data/`")
+        st.stop()
+    
+    st.success(f"✅ Загружено: {len(df_full):,} наблюдений")
+    
+    # --- ФИЛЬТРЫ ---
+    st.markdown("### 🎯 Шаг 1: Выберите подгруппы для сравнения")
+    
+    col_filter1, col_filter2 = st.columns(2)
+    
+    with col_filter1:
+        st.markdown("#### 🔵 Группа A")
+        with st.container(border=True):
+            region_a = st.selectbox("Регион:", ['Все'] + sorted(df_full['region_name'].unique()), key='reg_a')
+            year_a = st.selectbox("Год:", ['Все'] + sorted(df_full['year'].unique(), reverse=True), key='year_a')
+            
+            mest_a = st.radio("Местность:", ['Все', 'Город', 'Село'], key='mest_a', horizontal=True)
+            pol_a = st.radio("Пол:", ['Все', 'Мужчины', 'Женщины'], key='pol_a', horizontal=True)
+            
+            cluster_a = st.multiselect("Кластер:", list(CLUSTER_NAMES.values()), key='cluster_a')
+            
+            age_min_a, age_max_a = st.slider("Возраст:", 0, 100, (0, 100), key='age_a')
+    
+    with col_filter2:
+        st.markdown("#### 🔴 Группа B")
+        with st.container(border=True):
+            region_b = st.selectbox("Регион:", ['Все'] + sorted(df_full['region_name'].unique()), key='reg_b')
+            year_b = st.selectbox("Год:", ['Все'] + sorted(df_full['year'].unique(), reverse=True), key='year_b')
+            
+            mest_b = st.radio("Местность:", ['Все', 'Город', 'Село'], key='mest_b', horizontal=True)
+            pol_b = st.radio("Пол:", ['Все', 'Мужчины', 'Женщины'], key='pol_b', horizontal=True)
+            
+            cluster_b = st.multiselect("Кластер:", list(CLUSTER_NAMES.values()), key='cluster_b')
+            
+            age_min_b, age_max_b = st.slider("Возраст:", 0, 100, (0, 100), key='age_b')
+    
+    # --- ПРИМЕНЕНИЕ ФИЛЬТРОВ ---
+    def apply_filters(df, region, year, mest, pol, cluster, age_min, age_max):
+        df_filtered = df.copy()
+        
+        if region != 'Все':
+            df_filtered = df_filtered[df_filtered['region_name'] == region]
+        if year != 'Все':
+            df_filtered = df_filtered[df_filtered['year'] == year]
+        if mest == 'Город':
+            df_filtered = df_filtered[df_filtered['mest'] == 1]
+        elif mest == 'Село':
+            df_filtered = df_filtered[df_filtered['mest'] == 2]
+        if pol == 'Мужчины':
+            df_filtered = df_filtered[df_filtered['pol'] == 1]
+        elif pol == 'Женщины':
+            df_filtered = df_filtered[df_filtered['pol'] == 2]
+        if cluster:
+            cluster_ids = [k for k, v in CLUSTER_NAMES.items() if v in cluster]
+            df_filtered = df_filtered[df_filtered['cluster'].isin(cluster_ids)]
+        
+        df_filtered = df_filtered[(df_filtered['r1v2'] >= age_min) & (df_filtered['r1v2'] <= age_max)]
+        
+        return df_filtered
+    
+    df_a = apply_filters(df_full, region_a, year_a, mest_a, pol_a, cluster_a, age_min_a, age_max_a)
+    df_b = apply_filters(df_full, region_b, year_b, mest_b, pol_b, cluster_b, age_min_b, age_max_b)
+    
+    # --- РЕЗУЛЬТАТЫ ---
+    st.markdown("---")
+    st.markdown("### 📈 Шаг 2: Результаты сравнения")
+    
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric("Группа A", f"{len(df_a):,} чел")
+    with m2:
+        st.metric("Группа B", f"{len(df_b):,} чел")
+    with m3:
+        ratio = len(df_a) / len(df_b) if len(df_b) > 0 else 0
+        st.metric("Соотношение", f"{ratio:.2f}x")
+    
+    if len(df_a) == 0 or len(df_b) == 0:
+        st.warning("⚠️ Одна из групп пуста. Измените фильтры.")
+        st.stop()
+    
+    # --- СРАВНИТЕЛЬНАЯ ТАБЛИЦА ---
+    st.markdown("#### 📊 Ключевые показатели")
+    
+    metrics = ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']
+    
+    comparison_data = []
+    for var in metrics:
+        if var in df_a.columns and var in df_b.columns:
+            mean_a = df_a[var].mean()
+            mean_b = df_b[var].mean()
+            median_a = df_a[var].median()
+            median_b = df_b[var].median()
+            
+            diff_mean = mean_a - mean_b
+            diff_pct = (diff_mean / mean_b * 100) if mean_b != 0 else 0
+            
+            comparison_data.append({
+                'Показатель': VAR_NAMES.get(var, var),
+                'Группа A (среднее)': format_metric(mean_a, var),
+                'Группа B (среднее)': format_metric(mean_b, var),
+                'Разница': format_metric(diff_mean, var),
+                'Разница (%)': f"{diff_pct:+.1f}%"
+            })
+    
+    st.dataframe(pd.DataFrame(comparison_data), use_container_width=True, hide_index=True)
+    
+    # --- ГРАФИКИ РАСПРЕДЕЛЕНИЙ ---
+    st.markdown("#### 📊 Распределения")
+    
+    var_to_plot = st.selectbox("Показатель для графика:", metrics, format_func=lambda x: VAR_NAMES.get(x, x))
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Histogram(
+        x=df_a[var_to_plot],
+        name='Группа A',
+        opacity=0.7,
+        marker_color=COLORS['russia'],
+        nbinsx=30
+    ))
+    
+    fig.add_trace(go.Histogram(
+        x=df_b[var_to_plot],
+        name='Группа B',
+        opacity=0.7,
+        marker_color=COLORS['dagestan'],
+        nbinsx=30
+    ))
+    
+    fig.update_layout(
+        barmode='overlay',
+        title=f'Распределение: {VAR_NAMES.get(var_to_plot, var_to_plot)}',
+        xaxis_title=VAR_NAMES.get(var_to_plot, var_to_plot),
+        yaxis_title='Количество',
+        height=400
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # --- BOXPLOT ---
+    st.markdown("#### 📦 Boxplot (медианы и квартили)")
+    
+    boxplot_data = pd.DataFrame({
+        'Группа': ['A'] * len(df_a) + ['B'] * len(df_b),
+        'Значение': list(df_a[var_to_plot]) + list(df_b[var_to_plot])
+    })
+    
+    fig_box = px.box(
+        boxplot_data,
+        x='Группа',
+        y='Значение',
+        color='Группа',
+        color_discrete_map={'A': COLORS['russia'], 'B': COLORS['dagestan']},
+        title=f'{VAR_NAMES.get(var_to_plot, var_to_plot)} - медианы и квартили'
+    )
+    fig_box.update_layout(showlegend=False, height=400)
+    
+    st.plotly_chart(fig_box, use_container_width=True)
+
+# --- СИМУЛЯТОР 2030 (твой код) ---
+elif page == "🔮 Симулятор 2030":
     st.markdown("## 🔮 Сценарное моделирование развития")
     
     st.markdown("""
@@ -302,31 +521,23 @@ elif page == "🔮 Симулятор 2030 (NEW)":
             st.caption("Уменьшение размера семьи увеличивает доход на душу.")
         
     with col_charts:
-        # --- РАСЧЕТЫ ---
         base_dag = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == 2023)].iloc[0]
         base_income = base_dag['doxodn']
         
-        # Считаем абсолютные вклады каждого фактора (в рублях)
-        # 1. Эффект урбанизации
         urb_factor = 1 + (urban_delta * 0.008)
         urb_rub = base_income * (urb_factor - 1)
         
-        # 2. Эффект демографии (применяется к уже урбанизированному доходу)
         fam_factor = 1 - (family_delta * 0.01)
-        # Считаем чистый вклад демографии: (База + Урб) * Фам - (База + Урб)
         base_plus_urb = base_income + urb_rub
         fam_rub = (base_plus_urb * fam_factor) - base_plus_urb
         
-        # 3. Эффект обеления
         hidden_income_pool = base_income * 2.56 
         shadow_rub = hidden_income_pool * (shadow_delta / 100)
         
-        # Итог
         total_growth = urb_rub + fam_rub + shadow_rub
         new_income = base_income + total_growth
         real_growth_pct = (total_growth / base_income) * 100
         
-        # --- МЕТРИКИ ---
         st.markdown("### 📊 Результаты")
         
         m1, m2, m3 = st.columns(3)
@@ -334,11 +545,9 @@ elif page == "🔮 Симулятор 2030 (NEW)":
         with m2: st.metric("Прогноз 2030", format_metric(new_income, 'doxodn'), delta=f"{real_growth_pct:.1f}%")
         with m3: st.metric("Чистый прирост", f"+{format_number_ru(total_growth)} руб")
 
-        # --- ГРАФИКИ (ТАБЫ ДЛЯ НАГЛЯДНОСТИ) ---
         tab_drivers, tab_waterfall = st.tabs(["🔍 Драйверы роста (Детально)", "🌊 Общая картина (Waterfall)"])
         
         with tab_drivers:
-            # График только изменений (чтобы было видно разницу)
             drivers_df = pd.DataFrame({
                 'Фактор': ['Урбанизация', 'Демография', 'Обеление'],
                 'Вклад (руб)': [urb_rub, fam_rub, shadow_rub],
@@ -362,13 +571,11 @@ elif page == "🔮 Симулятор 2030 (NEW)":
             st.caption("На этом графике показан *только прирост*. Здесь хорошо видно, какой фактор вносит наибольший вклад.")
 
         with tab_waterfall:
-            # Классический Waterfall (общий масштаб)
             fig_wf = go.Figure(go.Waterfall(
                 name = "20", orientation = "v",
                 measure = ["relative", "relative", "relative", "relative", "total"],
                 x = ["2023", "Урбанизация", "Демография", "Обеление", "2030"],
                 textposition = "outside",
-                # Форматируем текст, чтобы тысячи были видны (k)
                 text = [f"{int(x/1000)}k" for x in [base_income, urb_rub, fam_rub, shadow_rub, new_income]],
                 y = [base_income, urb_rub, fam_rub, shadow_rub, new_income],
                 connector = {"line":{"color":"#cbd5e1"}},
@@ -379,10 +586,8 @@ elif page == "🔮 Симулятор 2030 (NEW)":
             fig_wf.update_layout(title="Общая динамика дохода", height=350)
             st.plotly_chart(fig_wf, use_container_width=True)
 
-
-
-# --- НОВЫЙ ДЕТЕКТОР (ИСПРАВЛЕННЫЙ HTML) ---
-elif page == "🕵️ Детектор скрытого (NEW)":
+# --- ДЕТЕКТОР СКРЫТОГО (твой код) ---
+elif page == "🕵️ Детектор скрытого":
     st.markdown("## 🕵️ ML-Реконструкция доходов (Data-Driven)")
     
     st.markdown("""
@@ -408,7 +613,6 @@ elif page == "🕵️ Детектор скрытого (NEW)":
             official_income = st.number_input("Заявленный доход (семья/мес)", value=50000, step=1000)
             food_expense = st.number_input("Реальные траты на еду (мес)", value=25000, step=1000)
 
-    # --- ЛОГИКА ОПРЕДЕЛЕНИЯ КЛАСТЕРА ---
     predicted_cluster_id = 1
     cluster_desc = "K1: Средний класс"
     
@@ -425,31 +629,27 @@ elif page == "🕵️ Детектор скрытого (NEW)":
         predicted_cluster_id = 3
         cluster_desc = "K3: Многодетные"
     
-    # --- РАСЧЕТЫ ---
     df_prof = data['profiles']
     
     if df_prof is not None and not df_prof.empty:
-        # Данные из датасета
         cluster_stats = df_prof[df_prof['cluster'] == predicted_cluster_id].iloc[0]
         ref_food_share = cluster_stats.get('food_share', 45.0) 
         ref_savings = cluster_stats.get('savings_rate', 5.0)
         
-        # Модель
         reconstructed_income = food_expense / (ref_food_share / 100)
         reconstructed_income_full = reconstructed_income / ((100 - ref_savings)/100)
         hidden_income = reconstructed_income_full - official_income
         gap_pct = (hidden_income / official_income) * 100 if official_income > 0 else 0
 
-        # --- ОПРЕДЕЛЕНИЕ СТАТУСА ---
         is_anomaly = hidden_income > 5000
         
         if is_anomaly:
-            status_color = "#dc2626" # Красный
+            status_color = "#dc2626"
             status_label = "⚠️ СКРЫТЫЙ ДОХОД:"
             status_value = f"{format_number_ru(hidden_income)} руб."
             interpretation = f"Представители кластера *{cluster_desc}* при таких тратах обычно имеют доход не менее **{format_number_ru(reconstructed_income_full)}**. Разница указывает на теневые источники."
         else:
-            status_color = "#10b981" # Зеленый
+            status_color = "#10b981"
             status_label = "✅ СТАТУС:"
             status_value = "Норма"
             interpretation = "Расходы субъекта соответствуют модели потребления выбранного кластера. Данные выглядят достоверными."
@@ -463,7 +663,6 @@ elif page == "🕵️ Детектор скрытого (NEW)":
             c2.metric("Эталон сбережений", f"{ref_savings:.1f}%")
             st.markdown("---")
             
-            # ВАЖНО: HTML СТРОКА БЕЗ ОТСТУПОВ СЛЕВА, ЧТОБЫ НЕ БЫЛО БЛОКА КОДА
             html_card = f"""
 <div style="background: white; padding: 1.5rem; border-radius: 0.8rem; border: 1px solid #e2e8f0; margin-bottom:1rem;">
 <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">РАСЧЕТНАЯ МОДЕЛЬ (НА ОСНОВЕ ДАННЫХ):</div>
@@ -488,7 +687,7 @@ elif page == "🕵️ Детектор скрытого (NEW)":
     else:
         st.error("⚠️ Не удалось загрузить профили кластеров. Проверьте файл cluster_profiles.csv")
 
-# --- КАРТА ---
+# --- КАРТА (твой код) ---
 elif page == "🗺️ Карта регионов":
     st.markdown("## 🗺️ Интерактивная карта России")
     col1, col2 = st.columns(2)
@@ -527,7 +726,7 @@ elif page == "🗺️ Карта регионов":
     fig.update_layout(height=600, margin=dict(l=0, r=0, t=50, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
-# --- СРАВНЕНИЕ ---
+# --- СРАВНЕНИЕ (твой код) ---
 elif page == "📊 Сравнение":
     st.markdown("## 📊 Сравнение регионов")
     year = st.selectbox("📅 Год:", sorted(data['stats']['year'].unique(), reverse=True))
@@ -546,7 +745,7 @@ elif page == "📊 Сравнение":
     fig.update_layout(height=800, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- ДИНАМИКА ---
+# --- ДИНАМИКА (твой код) ---
 elif page == "⏱️ Динамика":
     st.markdown("## ⏱️ Динамика 2016-2023")
     st.info("💡 Нажмите ▶️ для анимации")
@@ -566,7 +765,7 @@ elif page == "⏱️ Динамика":
     fig.update_layout(height=600, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- КЛАСТЕРЫ ---
+# --- КЛАСТЕРЫ (твой код) ---
 elif page == "🎯 Кластеры":
     st.markdown("## 🎯 Кластерный анализ")
     tab1, tab2 = st.tabs(["📊 Общее распределение", "🧩 Глубокий анализ (Heatmap)"])
@@ -621,15 +820,14 @@ elif page == "🎯 Кластеры":
         )
         st.plotly_chart(fig_hm, use_container_width=True)
 
-# --- ДАННЫЕ ---
+# --- ДАННЫЕ (твой код) ---
 elif page == "📥 Данные":
     st.markdown("## 📥 Экспорт данных")
     
     files = {
         'regional_stats.csv': 'Статистика по регионам',
         'cluster_distribution.csv': 'Распределение кластеров',
-        'cluster_profiles.csv': 'Профили кластеров',
-        'correlation_comparison.csv': 'Сравнение корреляций'
+        'cluster_profiles.csv': 'Профили кластеров'
     }
     
     for filename, description in files.items():
