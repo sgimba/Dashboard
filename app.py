@@ -1,119 +1,314 @@
 """
-ИНТЕРАКТИВНЫЙ ДАШБОРД - ПОЛНАЯ ВЕРСИЯ
-Проект РНФ № 25-28-20473: Дагестан - Демоэкономический Анализ
-
-Моделирование влияния демоэкономических процессов и самосохранительного 
-потенциала населения на региональное развитие с использованием методов 
-машинного обучения
+🚀 ВАУ-ДАШБОРД ДЛЯ РНФ № 25-28-20473
+Демоэкономический анализ Республики Дагестан
+Машинное обучение × Региональное развитие
 """
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import json
+from pathlib import Path
 import numpy as np
 
-# ==================== НАСТРОЙКИ СТРАНИЦЫ ====================
+# ============================================================================
+# КОНФИГУРАЦИЯ
+# ============================================================================
+
 st.set_page_config(
-    page_title="Дагестан: Демоэкономический Анализ",
-    page_icon="📊",
+    page_title="Демоэкономический анализ Дагестана | РНФ",
+    page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Кастомный CSS для улучшения визуала
+# ============================================================================
+# ЦВЕТОВАЯ ПАЛИТРА
+# ============================================================================
+
+COLORS = {
+    'primary': '#1e3a8a',      # Темно-синий (наука)
+    'secondary': '#f59e0b',    # Золотой (акцент)
+    'dagestan': '#dc2626',     # Красный (Дагестан)
+    'russia': '#3b82f6',       # Синий (Россия)
+    'success': '#10b981',      # Зеленый (рост)
+    'warning': '#f59e0b',      # Желтый (внимание)
+    'background': '#f8fafc',   # Светлый фон
+    'text': '#1e293b',         # Темный текст
+}
+
+# Палитра для кластеров
+CLUSTER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#dc2626', '#8b5cf6']
+
+# ============================================================================
+# КАСТОМНЫЙ CSS
+# ============================================================================
+
 st.markdown("""
 <style>
-    .main-header {
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    
+    /* Общие стили */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Hero section */
+    .hero {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        color: white;
+        padding: 3rem 2rem;
+        border-radius: 1rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 20px 60px rgba(30, 58, 138, 0.3);
+        text-align: center;
+    }
+    
+    .hero h1 {
         font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 1rem;
+        font-weight: 900;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.02em;
     }
+    
+    .hero p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        margin-bottom: 0.5rem;
+    }
+    
+    .hero-meta {
+        font-size: 0.9rem;
+        opacity: 0.7;
+        margin-top: 1rem;
+    }
+    
+    /* Ключевая находка */
+    .key-finding {
+        background: linear-gradient(135deg, #dc2626 0%, #f59e0b 100%);
+        color: white;
+        padding: 2.5rem;
+        border-radius: 1rem;
+        font-size: 1.8rem;
+        font-weight: 700;
+        text-align: center;
+        margin: 2rem 0;
+        box-shadow: 0 20px 60px rgba(220, 38, 38, 0.3);
+        animation: pulse-glow 3s ease-in-out infinite;
+    }
+    
+    @keyframes pulse-glow {
+        0%, 100% { 
+            transform: scale(1);
+            box-shadow: 0 20px 60px rgba(220, 38, 38, 0.3);
+        }
+        50% { 
+            transform: scale(1.02);
+            box-shadow: 0 25px 70px rgba(220, 38, 38, 0.4);
+        }
+    }
+    
+    .key-finding-number {
+        font-size: 3rem;
+        font-weight: 900;
+        display: block;
+        margin: 0.5rem 0;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    /* Метрика карточка */
     .metric-card {
-        background-color: #f0f2f6;
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        border-left: 4px solid #f59e0b;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+        border-left-color: #dc2626;
+    }
+    
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 900;
+        color: #1e3a8a;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+    }
+    
+    /* Блок открытия */
+    .finding-box {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-left: 5px solid #3b82f6;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.1);
+    }
+    
+    .finding-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #1e3a8a;
+        margin-bottom: 0.5rem;
+    }
+    
+    .finding-value {
+        font-size: 2rem;
+        font-weight: 900;
+        color: #dc2626;
+        margin: 0.5rem 0;
+    }
+    
+    .finding-description {
+        color: #475569;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
+    
+    [data-testid="stSidebar"] .stRadio > label {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    
+    /* Кнопки */
+    .stButton > button {
+        background: linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+    }
+    
+    /* Графики */
+    .stPlotlyChart {
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        background: white;
+        padding: 1rem;
+    }
+    
+    /* Разделитель */
+    hr {
+        margin: 3rem 0;
+        border: none;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+    }
+    
+    /* Заголовки секций */
+    h2 {
+        color: #1e3a8a;
+        font-weight: 800;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #f59e0b;
+        display: inline-block;
+    }
+    
+    h3 {
+        color: #334155;
+        font-weight: 700;
+        margin-top: 1.5rem;
+    }
+    
+    /* Статистика карточка */
+    .stat-row {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .stat-box {
+        flex: 1;
+        background: white;
         padding: 1rem;
         border-radius: 0.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         text-align: center;
     }
-    .stMetric {
-        background-color: #f0f2f6;
-        padding: 1rem;
+    
+    /* Timeline */
+    .timeline {
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        padding: 2rem;
+        border-radius: 1rem;
+        margin: 2rem 0;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+    }
+    
+    .timeline-year {
+        font-size: 1.5rem;
+        font-weight: 900;
+        color: #92400e;
+        display: inline-block;
+        background: white;
+        padding: 0.5rem 1rem;
         border-radius: 0.5rem;
+        margin: 0 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== СПРАВОЧНИКИ ====================
-METRIC_NAMES = {
-    'doxodn': 'Среднедушевой доход',
-    'r1v2': 'Средний возраст',
-    'chlico': 'Размер домохозяйства',
-    'food_share': 'Доля расходов на продукты',
-    'savings_rate': 'Норма сбережений',
-    'avg_income': 'Среднедушевой доход',
-    'avg_age': 'Средний возраст',
-    'avg_hh_size': 'Размер домохозяйства',
-    'food_share_pct': 'Доля расходов на продукты',
-    'women_pct': 'Доля женщин',
-    'urban_pct': 'Доля городского населения'
-}
+# ============================================================================
+# ЗАГРУЗКА ДАННЫХ
+# ============================================================================
 
-METRIC_UNITS = {
-    'doxodn': 'руб/год',
-    'r1v2': 'лет',
-    'chlico': 'человек',
-    'food_share': '%',
-    'savings_rate': '%',
-    'avg_income': 'руб/год',
-    'avg_age': 'лет',
-    'avg_hh_size': 'человек',
-    'food_share_pct': '%',
-    'women_pct': '%',
-    'urban_pct': '%'
-}
-
-# ==================== ЗАГРУЗКА ДАННЫХ ====================
 @st.cache_data
 def load_data():
-    """Загрузка всех данных"""
+    """Загрузка всех необходимых данных"""
     try:
-        regions = pd.read_csv('data/regions.csv')
-        regional_stats = pd.read_csv('data/regional_stats.csv')
-        time_series = pd.read_csv('data/time_series.csv')
+        data_dir = Path('data')
         
-        try:
-            cluster_profiles = pd.read_csv('data/cluster_profiles.csv')
-            cluster_dist = pd.read_csv('data/cluster_distribution.csv')
-        except:
-            cluster_profiles = None
-            cluster_dist = None
+        # Основные данные
+        regional_stats = pd.read_csv(data_dir / 'regional_stats.csv')
+        cluster_dist = pd.read_csv(data_dir / 'cluster_distribution.csv')
+        cluster_profiles = pd.read_csv(data_dir / 'cluster_profiles.csv')
+        correlation_data = pd.read_csv(data_dir / 'correlation_comparison.csv')
         
-        try:
-            corr_dag = pd.read_csv('data/correlations_dagestan.csv', index_col=0)
-            corr_all = pd.read_csv('data/correlations_all.csv', index_col=0)
-        except:
-            corr_dag = None
-            corr_all = None
-        
-        with open('data/metadata.json', 'r', encoding='utf-8') as f:
-            metadata = json.load(f)
+        # ВАЖНО: Конвертируем ter в строку для всех датафреймов
+        for df in [regional_stats, cluster_dist]:
+            if 'ter' in df.columns:
+                df['ter'] = df['ter'].astype(str).str.strip()
         
         return {
-            'regions': regions,
             'stats': regional_stats,
-            'time_series': time_series,
-            'clusters': cluster_profiles,
-            'cluster_dist': cluster_dist,
-            'corr_dag': corr_dag,
-            'corr_all': corr_all,
-            'metadata': metadata
+            'clusters': cluster_dist,
+            'profiles': cluster_profiles,
+            'correlations': correlation_data
         }
     except Exception as e:
-        st.error(f"❌ Ошибка загрузки данных: {e}")
+        st.error(f"Ошибка загрузки данных: {e}")
         return None
 
 data = load_data()
@@ -121,589 +316,626 @@ data = load_data()
 if data is None:
     st.stop()
 
-# ==================== SIDEBAR ====================
-st.sidebar.title("📊 Навигация")
-st.sidebar.markdown("---")
+# ============================================================================
+# HERO SECTION
+# ============================================================================
 
-page = st.sidebar.radio(
-    "Выберите раздел:",
-    [
-        "🏠 Главная",
-        "🗺️ Карта регионов",
-        "📈 Сравнение регионов",
-        "⏱️ Динамика 2016-2023",
-        "👥 Профили кластеров",
-        "🔗 Корреляции",
-        "💾 Скачать данные",
-        "📖 Документация"
-    ]
-)
+st.markdown("""
+<div class="hero">
+    <h1>🎯 ДЕМОЭКОНОМИЧЕСКИЙ АНАЛИЗ РЕСПУБЛИКИ ДАГЕСТАН</h1>
+    <p>Машинное обучение × Региональное развитие</p>
+    <div class="hero-meta">
+        РНФ № 25-28-20473 | ДФИЦ РАН | 2016-2023
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-st.sidebar.markdown(f"""
-**Проект:** РНФ № 25-28-20473  
-**Организация:** ДФИЦ РАН  
-**Период:** 2016-2023  
-**Наблюдений:** {data['metadata']['n_observations']:,}  
-**Регионов:** {data['metadata']['n_regions']}
-""")
+# ============================================================================
+# КЛЮЧЕВАЯ НАХОДКА (ГЛАВНАЯ)
+# ============================================================================
 
-# ==================== ГЛАВНАЯ СТРАНИЦА ====================
-if page == "🏠 Главная":
-    st.markdown('<p class="main-header">📊 Дагестан: Демоэкономический Анализ</p>', unsafe_allow_html=True)
-    st.markdown("### Интерактивная база данных")
+st.markdown("""
+<div class="key-finding">
+    🔥 КЛЮЧЕВАЯ НАУЧНАЯ НАХОДКА
+    <span class="key-finding-number">256%</span>
+    Скрытый доход в Дагестане превышает официальный в 2.5 раза<br>
+    <small style="font-size: 1.2rem; opacity: 0.9;">
+    (125,651 руб официально → 447,308 руб реально, по данным ML-реконструкции)
+    </small>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# ОСНОВНЫЕ МЕТРИКИ ПРОЕКТА
+# ============================================================================
+
+st.markdown("## 📊 Масштаб исследования")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.markdown("""
+    <div class="metric-card">
+        <div class="metric-value">330,302</div>
+        <div class="metric-label">Наблюдений</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div class="metric-card">
+        <div class="metric-value">24</div>
+        <div class="metric-label">Региона России</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""
+    <div class="metric-card">
+        <div class="metric-value">8</div>
+        <div class="metric-label">Лет анализа</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    st.markdown("""
+    <div class="metric-card">
+        <div class="metric-value">5</div>
+        <div class="metric-label">Кластеров ML</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================================================
+# TIMELINE ПРОЕКТА
+# ============================================================================
+
+st.markdown("---")
+
+st.markdown("""
+<div class="timeline">
+    <h3 style="text-align: center; color: #92400e; margin-bottom: 1.5rem;">
+        📅 Хронология исследования
+    </h3>
+    <div style="text-align: center; font-size: 1.1rem; color: #78350f;">
+        <span class="timeline-year">2016</span>
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        <span class="timeline-year">2023</span>
+        <br><br>
+        <div style="margin-top: 1rem; font-size: 0.95rem;">
+            ✓ Данные ОБДХ Росстат | ✓ K-means кластеризация | 
+            ✓ ML реконструкция доходов | ✓ SHAP интерпретация
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# КЛЮЧЕВЫЕ НАУЧНЫЕ ОТКРЫТИЯ
+# ============================================================================
+
+st.markdown("## 🔬 Ключевые научные открытия")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("""
+    <div class="finding-box">
+        <div class="finding-title">💰 Скрытая экономика</div>
+        <div class="finding-value">256%</div>
+        <div class="finding-description">
+            Скрытый доход в Дагестане (vs 124% по России). 
+            ML-модель реконструировала реальный доход: 
+            447,308 руб против официальных 125,651 руб.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.markdown(f"""
-    **Проект РНФ № 25-28-20473**  
-    *Моделирование влияния демоэкономических процессов и самосохранительного 
-    потенциала населения на региональное развитие с использованием методов 
-    машинного обучения*
+    st.markdown("""
+    <div class="finding-box">
+        <div class="finding-title">👥 Кластер натурального хозяйства</div>
+        <div class="finding-value">42% vs 1.6%</div>
+        <div class="finding-description">
+            Кластер K4 (молодые сельские семьи с низким денежным доходом 
+            + натуральное хозяйство) доминирует в Дагестане, 
+            но почти отсутствует в остальной России.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div class="finding-box">
+        <div class="finding-title">♿ Адаптивные стратегии</div>
+        <div class="finding-value">20.2% vs 6.4%</div>
+        <div class="finding-description">
+            Пенсионеры-инвалиды в Дагестане (vs Россия). 
+            Уникальная адаптация: получение статуса инвалидности 
+            для доступа к федеральным пособиям + работа в тени.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    **Организация:** {data['metadata']['organization']}  
-    **Источник данных:** {data['metadata']['data_source']}  
-    **Период:** {data['metadata']['period']}
-    """)
+    st.markdown("""
+    <div class="finding-box">
+        <div class="finding-title">💸 Барьеры накопления</div>
+        <div class="finding-value">r = 0.113 vs 0.364</div>
+        <div class="finding-description">
+            Корреляция доход-сбережения в Дагестане значительно ниже, 
+            чем по России. Структурные барьеры накопления богатства 
+            препятствуют трансформации дохода в сбережения.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ============================================================================
+# SIDEBAR НАВИГАЦИЯ
+# ============================================================================
+
+with st.sidebar:
+    st.markdown("## 🗺️ Навигация")
     
-    st.markdown("---")
-    
-    # Ключевые цифры
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            label="📊 Наблюдений",
-            value=f"{data['metadata']['n_observations']:,}"
-        )
-    
-    with col2:
-        st.metric(
-            label="🗺️ Регионов",
-            value=data['metadata']['n_regions']
-        )
-    
-    with col3:
-        st.metric(
-            label="📅 Лет",
-            value="8 (2016-2023)"
-        )
-    
-    with col4:
-        st.metric(
-            label="📋 Переменных",
-            value=data['metadata']['n_variables']
-        )
-    
-    st.markdown("---")
-    
-    # Основные находки
-    st.subheader("🎯 Ключевые находки")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        **1. Демографические особенности**
-        - Дагестан моложе на 2.8 года
-        - Размер домохозяйств на 39% больше
-        - Высокая доля трудоспособных (+3.4 п.п.)
-        
-        **2. Экономическая уязвимость**
-        - Доходы на 38.5% ниже среднероссийских
-        - Отрицательная норма сбережений (-0.5%)
-        - 62% расходов на продукты (vs 42% в РФ)
-        - 31.5% домохозяйств живут в долг
-        """)
-    
-    with col2:
-        st.markdown("""
-        **3. Институциональные провалы**
-        - Региональная поддержка: 2.9% vs 32.1% в РФ
-        - Транспортные льготы: 0% vs 8.1%
-        - Медицинские льготы: <1% населения
-        
-        **4. Адаптивные стратегии**
-        - Пенсии по инвалидности: 20.2% vs 6.4% (×3.2)
-        - Концентрация в возрасте 40-49 лет
-        - Компенсация через федеральные каналы
-        - Признаки теневой экономики
-        """)
-    
-    # Визуализация ключевых показателей
-    st.markdown("---")
-    st.subheader("📊 Ключевые показатели: Дагестан vs Россия")
-    
-    # Берём последний год (с защитой)
-    latest_year = data['stats']['year'].max()
-    
-    dag_latest = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == latest_year)]
-    if len(dag_latest) == 0:
-        st.warning("⚠️ Нет данных по Дагестану за последний год")
-        st.stop()
-    dag_2023 = dag_latest.iloc[0]
-    
-    rus_latest = data['stats'][(data['stats']['ter'] != '82') & (data['stats']['year'] == latest_year)]
-    if len(rus_latest) == 0:
-        st.warning("⚠️ Нет данных по России за последний год")
-        st.stop()
-    rus_2023 = rus_latest.groupby('year').mean().iloc[0]
-    
-    # Создаём данные для сравнения
-    comparison_data = pd.DataFrame({
-        'Показатель': [
-            'Среднедушевой доход\n(руб/год)',
-            'Средний возраст\n(лет)',
-            'Размер ДХ\n(человек)',
-            'Доля продуктов\n(%)',
-            'Норма сбережений\n(%)',
-            'Доля города\n(%)'
+    page = st.radio(
+        "Выберите раздел:",
+        [
+            "🏠 Главная",
+            "🗺️ Интерактивная карта",
+            "📊 Сравнение регионов",
+            "⏱️ Динамика 2016-2023",
+            "🎯 Кластерный анализ",
+            "🔗 Корреляции",
+            "📥 Скачать данные",
+            "📖 Документация"
         ],
-        'Дагестан': [
-            dag_2023['avg_income'],
-            dag_2023['avg_age'],
-            dag_2023['avg_hh_size'],
-            dag_2023['food_share_pct'],
-            dag_2023['savings_rate'],
-            dag_2023['urban_pct']
-        ],
-        'Россия': [
-            rus_2023['avg_income'],
-            rus_2023['avg_age'],
-            rus_2023['avg_hh_size'],
-            rus_2023['food_share_pct'],
-            rus_2023['savings_rate'],
-            rus_2023['urban_pct']
-        ]
-    })
-    
-    # График сравнения
-    fig = go.Figure()
-    
-    fig.add_trace(go.Bar(
-        name='Дагестан',
-        x=comparison_data['Показатель'],
-        y=comparison_data['Дагестан'],
-        marker_color='#e74c3c'
-    ))
-    
-    fig.add_trace(go.Bar(
-        name='Россия (среднее)',
-        x=comparison_data['Показатель'],
-        y=comparison_data['Россия'],
-        marker_color='#3498db'
-    ))
-    
-    fig.update_layout(
-        title='Сравнение ключевых показателей (2023)',
-        barmode='group',
-        height=400,
-        xaxis_title='',
-        yaxis_title='Значение'
+        index=0
     )
     
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Регионы в базе
     st.markdown("---")
-    st.subheader("🗺️ Регионы в базе данных")
-    
-    regions_by_group = data['regions'].groupby('region_group')['region_name'].apply(list).to_dict()
-    
-    cols = st.columns(3)
-    for idx, (group, regions) in enumerate(regions_by_group.items()):
-        with cols[idx % 3]:
-            st.markdown(f"**{group}** ({len(regions)})")
-            for region in sorted(regions):
-                is_dag = '🎯 ' if 'Дагестан' in region else '• '
-                st.markdown(f"{is_dag}{region}")
+    st.markdown("### 📋 Информация о проекте")
+    st.markdown("""
+    **Грант:** РНФ № 25-28-20473  
+    **Организация:** ДФИЦ РАН  
+    **Период:** 2016-2023  
+    **Наблюдений:** 330,302  
+    **Регионов:** 24
+    """)
 
-# ==================== КАРТА РЕГИОНОВ ====================
-elif page == "🗺️ Карта регионов":
-    st.title("🗺️ Карта регионов")
+# ============================================================================
+# СТРАНИЦА: ГЛАВНАЯ
+# ============================================================================
+
+if page == "🏠 Главная":
+    st.markdown("## 📈 Обзор ключевых показателей по Дагестану")
     
-    # Выбор года и показателя
-    col1, col2 = st.columns([1, 2])
+    # Получаем последние данные по Дагестану
+    dag_latest = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == 2023)]
+    
+    if len(dag_latest) == 0:
+        st.warning("⚠️ Нет данных по Дагестану за 2023 год")
+    else:
+        dag_row = dag_latest.iloc[0]
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="💰 Среднедушевой доход (2023)",
+                value=f"{dag_row['doxodn']:,.0f} ₽",
+                delta="Официальные данные"
+            )
+        
+        with col2:
+            st.metric(
+                label="👤 Средний возраст",
+                value=f"{dag_row['r1v2']:.1f} лет",
+                delta=None
+            )
+        
+        with col3:
+            st.metric(
+                label="🍞 Доля расходов на еду",
+                value=f"{dag_row['food_share']:.1f}%",
+                delta="Индикатор бедности"
+            )
+        
+        # График динамики дохода
+        st.markdown("### 📊 Динамика среднедушевого дохода (2016-2023)")
+        
+        dag_history = data['stats'][data['stats']['ter'] == '82'].sort_values('year')
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Scatter(
+            x=dag_history['year'],
+            y=dag_history['doxodn'],
+            mode='lines+markers',
+            name='Дагестан',
+            line=dict(color=COLORS['dagestan'], width=3),
+            marker=dict(size=10),
+            hovertemplate='<b>Год:</b> %{x}<br><b>Доход:</b> %{y:,.0f} ₽<extra></extra>'
+        ))
+        
+        # Добавим среднее по России для сравнения
+        russia_avg = data['stats'].groupby('year')['doxodn'].mean().reset_index()
+        
+        fig.add_trace(go.Scatter(
+            x=russia_avg['year'],
+            y=russia_avg['doxodn'],
+            mode='lines+markers',
+            name='Россия (среднее)',
+            line=dict(color=COLORS['russia'], width=2, dash='dash'),
+            marker=dict(size=8),
+            hovertemplate='<b>Год:</b> %{x}<br><b>Доход:</b> %{y:,.0f} ₽<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            title='Сравнение динамики доходов: Дагестан vs Россия',
+            xaxis_title='Год',
+            yaxis_title='Среднедушевой доход (руб)',
+            hovermode='x unified',
+            height=500,
+            template='plotly_white'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+
+# ============================================================================
+# СТРАНИЦА: ИНТЕРАКТИВНАЯ КАРТА
+# ============================================================================
+
+elif page == "🗺️ Интерактивная карта":
+    st.markdown("## 🗺️ Интерактивная карта регионов России")
+    
+    # Селекторы
+    col1, col2 = st.columns(2)
     
     with col1:
         year = st.selectbox(
             "📅 Год:",
-            sorted(data['stats']['year'].unique(), reverse=True)
+            sorted(data['stats']['year'].unique(), reverse=True),
+            index=0
         )
     
     with col2:
         metric = st.selectbox(
             "📊 Показатель:",
-            ['avg_income', 'avg_age', 'avg_hh_size', 'food_share_pct', 'savings_rate', 'women_pct', 'urban_pct'],
-            format_func=lambda x: f"{METRIC_NAMES[x]} ({METRIC_UNITS[x]})"
+            {
+                'doxodn': 'Среднедушевой доход',
+                'r1v2': 'Средний возраст',
+                'food_share': 'Доля расходов на еду (%)',
+                'savings_rate': 'Норма сбережений (%)',
+                'mest_urban_pct': 'Урбанизация (%)',
+                'pol_female_pct': 'Доля женщин (%)'
+            }
         )
     
-    # Фильтруем данные
+    # Данные за выбранный год
     df_year = data['stats'][data['stats']['year'] == year].copy()
-    df_year = df_year.sort_values(metric, ascending=False)
     
-    # Статистика по топ и низ регионам
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("### 🏆 ТОП-3 региона")
-        top3 = df_year.nlargest(3, metric)[['region_name', metric]]
-        for idx, row in top3.iterrows():
-            st.metric(
-                label=row['region_name'],
-                value=f"{row[metric]:.1f} {METRIC_UNITS[metric]}"
-            )
-    
-    with col2:
-        st.markdown("### 🎯 Дагестан")
-        dag_data = df_year[df_year['ter'] == '82']
-        
-        if len(dag_data) == 0:
-            st.warning("⚠️ Нет данных по Дагестану за выбранный год")
-        else:
-            dag_row = dag_data.iloc[0]
-            dag_value = dag_row[metric]
-            rus_mean = df_year[df_year['ter'] != '82'][metric].mean()
-            diff_pct = ((dag_value - rus_mean) / rus_mean * 100)
-            
-            st.metric(
-                label="Значение",
-                value=f"{dag_value:.1f} {METRIC_UNITS[metric]}",
-                delta=f"{diff_pct:+.1f}% от среднего по РФ"
-            )
-            
-            dag_rank = (df_year[metric] > dag_value).sum() + 1
-            st.metric(
-                label="Место в рейтинге",
-                value=f"{dag_rank} из {len(df_year)}"
-            )
-    
-    with col3:
-        st.markdown("### 📉 НИЗ-3 региона")
-        bottom3 = df_year.nsmallest(3, metric)[['region_name', metric]]
-        for idx, row in bottom3.iterrows():
-            st.metric(
-                label=row['region_name'],
-                value=f"{row[metric]:.1f} {METRIC_UNITS[metric]}"
-            )
-    
-    # Полная таблица с рейтингом
-    st.markdown("---")
-    st.subheader(f"📊 Полный рейтинг по показателю: {METRIC_NAMES[metric]}")
-    
-    # Добавляем место в рейтинге
-    df_display = df_year[['region_name', 'region_group', metric, 'n_observations']].copy()
-    df_display.insert(0, 'Место', range(1, len(df_display) + 1))
-    df_display.columns = ['Место', 'Регион', 'Группа', METRIC_NAMES[metric], 'Наблюдений']
-    
-    # Подсвечиваем Дагестан
-    def highlight_dagestan(row):
-        if 'Дагестан' in row['Регион']:
-            return ['background-color: #ffe6e6'] * len(row)
-        return [''] * len(row)
-    
-    st.dataframe(
-        df_display.style.apply(highlight_dagestan, axis=1),
-        use_container_width=True,
-        height=600
-    )
-    
-    # График распределения
-    st.markdown("---")
-    st.subheader("📈 Распределение по группам регионов")
-    
-    fig = px.box(
-        df_year,
-        x='region_group',
-        y=metric,
-        color='region_group',
-        points='all',
-        hover_data=['region_name'],
-        title=f'Распределение: {METRIC_NAMES[metric]}',
-        labels={
-            'region_group': 'Группа регионов',
-            metric: f'{METRIC_NAMES[metric]} ({METRIC_UNITS[metric]})'
+    if len(df_year) == 0:
+        st.warning(f"⚠️ Нет данных за {year} год")
+    else:
+        # Создаем scatter map (простая альтернатива choropleth)
+        # Координаты центров регионов (упрощенные)
+        region_coords = {
+            '01': (51.7, 45.0),  # Адыгея
+            '03': (54.7, 55.9),  # Башкортостан
+            '07': (60.6, 56.8),  # Кабардино-Балкария
+            '12': (55.8, 49.1),  # Марий Эл
+            '18': (43.3, 45.0),  # Удмуртия
+            '26': (55.0, 82.9),  # Ставропольский край
+            '40': (44.0, 56.3),  # Калужская область
+            '45': (38.0, 55.7),  # Курганская область
+            '46': (42.0, 47.2),  # Курская область
+            '60': (39.7, 47.2),  # Псковская область
+            '82': (47.5, 42.5),  # Дагестан ⭐
+            # Добавь остальные регионы по необходимости
         }
+        
+        # Создаем датафрейм с координатами
+        df_year['lat'] = df_year['ter'].map(lambda x: region_coords.get(x, (55, 37))[1])
+        df_year['lon'] = df_year['ter'].map(lambda x: region_coords.get(x, (55, 37))[0])
+        
+        # Названия регионов (упрощенные)
+        region_names = {
+            '82': 'Дагестан',
+            '01': 'Адыгея',
+            '03': 'Башкортостан',
+            # Добавь остальные
+        }
+        df_year['region_name'] = df_year['ter'].map(lambda x: region_names.get(x, f'Регион {x}'))
+        
+        # Создаем scatter geo
+        fig = px.scatter_geo(
+            df_year,
+            lat='lat',
+            lon='lon',
+            size=metric,
+            color=metric,
+            hover_name='region_name',
+            hover_data={
+                'lat': False,
+                'lon': False,
+                metric: ':.1f'
+            },
+            color_continuous_scale=[
+                [0, COLORS['russia']],
+                [0.5, COLORS['warning']],
+                [1, COLORS['dagestan']]
+            ],
+            size_max=50,
+            title=f'{list({metric: "..."}.keys())[0]} по регионам России ({year})'
+        )
+        
+        fig.update_geos(
+            scope='europe',
+            showcountries=True,
+            countrycolor='lightgray',
+            showsubunits=True,
+            subunitcolor='white',
+            center=dict(lat=60, lon=60),
+            projection_scale=2.5
+        )
+        
+        fig.update_layout(height=600)
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # ТОП и НИЗ регионов
+        st.markdown("### 🏆 Рейтинг регионов")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### ⬆️ ТОП-5 регионов")
+            top5 = df_year.nlargest(5, metric)[['region_name', metric]]
+            for idx, row in top5.iterrows():
+                st.markdown(f"**{row['region_name']}**: {row[metric]:.1f}")
+        
+        with col2:
+            st.markdown("#### ⬇️ НИЗ-5 регионов")
+            bottom5 = df_year.nsmallest(5, metric)[['region_name', metric]]
+            for idx, row in bottom5.iterrows():
+                st.markdown(f"**{row['region_name']}**: {row[metric]:.1f}")
+
+# Продолжение следует...
+
+# ============================================================================
+# СТРАНИЦА: СРАВНЕНИЕ РЕГИОНОВ
+# ============================================================================
+
+elif page == "📊 Сравнение регионов":
+    st.markdown("## 📊 Сравнительный анализ регионов")
+    
+    # Селектор года
+    year = st.selectbox(
+        "📅 Выберите год:",
+        sorted(data['stats']['year'].unique(), reverse=True),
+        key='comp_year'
     )
     
-    # Добавляем линию Дагестана (с защитой)
-    dag_data_for_line = df_year[df_year['ter'] == '82'][metric]
-    if len(dag_data_for_line) > 0:
-        dag_value = dag_data_for_line.values[0]
-        fig.add_hline(
-            y=dag_value,
-            line_dash="dash",
-            line_color="red",
-            annotation_text="Дагестан",
-            annotation_position="right"
-        )
+    df_year = data['stats'][data['stats']['year'] == year].copy()
     
-    fig.update_layout(height=500, showlegend=False)
-    st.plotly_chart(fig, use_container_width=True)
+    if len(df_year) == 0:
+        st.warning(f"⚠️ Нет данных за {year} год")
+    else:
+        # Добавляем названия регионов
+        df_year['region_name'] = df_year['ter'].apply(lambda x: f'Регион {x}')
+        df_year.loc[df_year['ter'] == '82', 'region_name'] = 'Дагестан'
+        
+        # Мультивыбор показателей
+        metrics_options = {
+            'doxodn': 'Среднедушевой доход',
+            'r1v2': 'Средний возраст',
+            'chlico': 'Размер домохозяйства',
+            'food_share': 'Доля расходов на еду (%)',
+            'savings_rate': 'Норма сбережений (%)'
+        }
+        
+        selected_metric = st.selectbox(
+            "📊 Показатель для сравнения:",
+            list(metrics_options.keys()),
+            format_func=lambda x: metrics_options[x]
+        )
+        
+        # Горизонтальный bar chart
+        fig = px.bar(
+            df_year.sort_values(selected_metric, ascending=True),
+            x=selected_metric,
+            y='region_name',
+            orientation='h',
+            color=selected_metric,
+            color_continuous_scale=[
+                [0, COLORS['russia']],
+                [0.5, COLORS['warning']],
+                [1, COLORS['dagestan']]
+            ],
+            title=f'{metrics_options[selected_metric]} по регионам ({year})',
+            labels={selected_metric: metrics_options[selected_metric]}
+        )
+        
+        # Highlight Дагестан
+        dag_value = df_year[df_year['ter'] == '82'][selected_metric]
+        if len(dag_value) > 0:
+            fig.add_vline(
+                x=dag_value.values[0],
+                line_dash="dash",
+                line_color=COLORS['dagestan'],
+                line_width=2,
+                annotation_text="Дагестан",
+                annotation_position="top"
+            )
+        
+        fig.update_layout(
+            height=800,
+            showlegend=False,
+            template='plotly_white'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Статистика
+        st.markdown("### 📈 Статистический анализ")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Среднее", f"{df_year[selected_metric].mean():.1f}")
+        
+        with col2:
+            st.metric("Медиана", f"{df_year[selected_metric].median():.1f}")
+        
+        with col3:
+            st.metric("Минимум", f"{df_year[selected_metric].min():.1f}")
+        
+        with col4:
+            st.metric("Максимум", f"{df_year[selected_metric].max():.1f}")
+        
+        # Дагестан vs Россия
+        if len(df_year[df_year['ter'] == '82']) > 0:
+            dag_val = df_year[df_year['ter'] == '82'][selected_metric].values[0]
+            russia_avg = df_year[selected_metric].mean()
+            diff = ((dag_val - russia_avg) / russia_avg * 100)
+            
+            st.markdown("### 🎯 Дагестан vs Россия")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "Дагестан",
+                    f"{dag_val:.1f}"
+                )
+            
+            with col2:
+                st.metric(
+                    "Россия (среднее)",
+                    f"{russia_avg:.1f}"
+                )
+            
+            with col3:
+                st.metric(
+                    "Разница",
+                    f"{diff:+.1f}%",
+                    delta=f"{'выше' if diff > 0 else 'ниже'} среднего"
+                )
 
-# ==================== СРАВНЕНИЕ РЕГИОНОВ ====================
-elif page == "📈 Сравнение регионов":
-    st.title("📈 Сравнение регионов")
+# ============================================================================
+# СТРАНИЦА: ДИНАМИКА 2016-2023
+# ============================================================================
+
+elif page == "⏱️ Динамика 2016-2023":
+    st.markdown("## ⏱️ Временная динамика 2016-2023")
     
-    st.markdown("""
-    Сравните показатели различных регионов с возможностью фильтрации по годам,
-    группам регионов и типам визуализации.
-    """)
+    # Анимированный график
+    st.markdown("### 🎬 Анимированная визуализация")
     
-    # Фильтры
-    col1, col2, col3 = st.columns(3)
+    st.info("💡 Нажмите ▶️ внизу графика для просмотра динамики по годам!")
     
-    with col1:
-        years = st.multiselect(
-            "📅 Годы:",
-            sorted(data['stats']['year'].unique()),
-            default=[2023, 2022, 2021]
-        )
-    
-    with col2:
-        groups = st.multiselect(
-            "🗺️ Группы регионов:",
-            data['regions']['region_group'].unique().tolist(),
-            default=data['regions']['region_group'].unique().tolist()
-        )
-    
-    with col3:
-        chart_type = st.selectbox(
-            "📊 Тип графика:",
-            ['Столбчатая диаграмма', 'Точечная диаграмма', 'Ящик с усами', 'Линейный график']
-        )
-    
-    # Фильтруем данные
-    df_filtered = data['stats'][
-        (data['stats']['year'].isin(years)) &
-        (data['stats']['region_group'].isin(groups))
-    ].copy()
-    
-    if len(df_filtered) == 0:
-        st.warning("⚠️ Нет данных для выбранных фильтров")
-        st.stop()
-    
-    # Выбор показателей
-    st.markdown("---")
-    
+    # Выбор показателей для осей
     col1, col2 = st.columns(2)
     
     with col1:
-        y_metric = st.selectbox(
-            "📊 Показатель (ось Y):",
-            ['avg_income', 'avg_age', 'avg_hh_size', 'food_share_pct', 'savings_rate', 'women_pct', 'urban_pct'],
-            format_func=lambda x: f"{METRIC_NAMES[x]} ({METRIC_UNITS[x]})"
+        x_metric = st.selectbox(
+            "Ось X:",
+            ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate'],
+            format_func=lambda x: {
+                'doxodn': 'Доход',
+                'r1v2': 'Возраст',
+                'chlico': 'Размер ДХ',
+                'food_share': 'Доля еды (%)',
+                'savings_rate': 'Сбережения (%)'
+            }[x]
         )
     
     with col2:
-        if chart_type == 'Точечная диаграмма':
-            x_metric = st.selectbox(
-                "📊 Показатель (ось X):",
-                ['avg_income', 'avg_age', 'avg_hh_size', 'food_share_pct', 'savings_rate', 'women_pct', 'urban_pct'],
-                index=0,
-                format_func=lambda x: f"{METRIC_NAMES[x]} ({METRIC_UNITS[x]})"
-            )
-    
-    # Строим график
-    st.markdown("---")
-    
-    if chart_type == 'Столбчатая диаграмма':
-        # Агрегируем по регионам (среднее по годам)
-        df_agg = df_filtered.groupby(['region_name', 'region_group'])[y_metric].mean().reset_index()
-        df_agg = df_agg.sort_values(y_metric, ascending=True)
-        
-        fig = px.bar(
-            df_agg,
-            x=y_metric,
-            y='region_name',
-            color='region_group',
-            orientation='h',
-            title=f'{METRIC_NAMES[y_metric]} по регионам (среднее за выбранные годы)',
-            labels={
-                'region_name': 'Регион',
-                y_metric: f'{METRIC_NAMES[y_metric]} ({METRIC_UNITS[y_metric]})',
-                'region_group': 'Группа'
-            },
-            height=800
-        )
-        
-        # Выделяем Дагестан
-        colors = ['#e74c3c' if 'Дагестан' in x else '#3498db' 
-                 for x in df_agg['region_name']]
-        fig.update_traces(marker_color=colors)
-    
-    elif chart_type == 'Точечная диаграмма':
-        fig = px.scatter(
-            df_filtered,
-            x=x_metric,
-            y=y_metric,
-            size='n_observations',
-            color='region_group',
-            hover_data=['region_name', 'year'],
-            title=f'{METRIC_NAMES[y_metric]} vs {METRIC_NAMES[x_metric]}',
-            labels={
-                x_metric: f'{METRIC_NAMES[x_metric]} ({METRIC_UNITS[x_metric]})',
-                y_metric: f'{METRIC_NAMES[y_metric]} ({METRIC_UNITS[y_metric]})',
-                'region_group': 'Группа',
-                'n_observations': 'Наблюдений'
-            },
-            height=600
-        )
-        
-        # Выделяем Дагестан
-        dag_points = df_filtered[df_filtered['ter'] == '82']
-        fig.add_trace(go.Scatter(
-            x=dag_points[x_metric],
-            y=dag_points[y_metric],
-            mode='markers',
-            marker=dict(size=15, color='red', symbol='star'),
-            name='Дагестан',
-            hovertemplate='Дагестан<br>' +
-                         f'{METRIC_NAMES[x_metric]}: %{{x}}<br>' +
-                         f'{METRIC_NAMES[y_metric]}: %{{y}}'
-        ))
-    
-    elif chart_type == 'Ящик с усами':
-        fig = px.box(
-            df_filtered,
-            x='region_group',
-            y=y_metric,
-            color='region_group',
-            points='all',
-            hover_data=['region_name', 'year'],
-            title=f'Распределение: {METRIC_NAMES[y_metric]}',
-            labels={
-                'region_group': 'Группа регионов',
-                y_metric: f'{METRIC_NAMES[y_metric]} ({METRIC_UNITS[y_metric]})'
-            },
-            height=600
+        y_metric = st.selectbox(
+            "Ось Y:",
+            ['savings_rate', 'food_share', 'doxodn', 'r1v2', 'chlico'],
+            format_func=lambda x: {
+                'doxodn': 'Доход',
+                'r1v2': 'Возраст',
+                'chlico': 'Размер ДХ',
+                'food_share': 'Доля еды (%)',
+                'savings_rate': 'Сбережения (%)'
+            }[x]
         )
     
-    else:  # Линейный график
-        # Группируем по годам и группам
-        df_line = df_filtered.groupby(['year', 'region_group'])[y_metric].mean().reset_index()
-        
-        fig = px.line(
-            df_line,
-            x='year',
-            y=y_metric,
-            color='region_group',
-            markers=True,
-            title=f'Динамика: {METRIC_NAMES[y_metric]}',
-            labels={
-                'year': 'Год',
-                y_metric: f'{METRIC_NAMES[y_metric]} ({METRIC_UNITS[y_metric]})',
-                'region_group': 'Группа'
-            },
-            height=500
-        )
-        
-        # Добавляем Дагестан отдельной линией
-        dag_line = df_filtered[df_filtered['ter'] == '82'].groupby('year')[y_metric].mean().reset_index()
-        fig.add_trace(go.Scatter(
-            x=dag_line['year'],
-            y=dag_line[y_metric],
-            mode='lines+markers',
-            name='Дагестан',
-            line=dict(color='red', width=3),
-            marker=dict(size=10)
-        ))
+    # Подготовка данных
+    df_anim = data['stats'].copy()
+    df_anim['region_name'] = df_anim['ter'].apply(lambda x: 'Дагестан' if x == '82' else f'Регион {x}')
+    df_anim['is_dagestan'] = df_anim['ter'] == '82'
     
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Статистика
-    st.markdown("---")
-    st.subheader("📊 Статистика по группам")
-    
-    summary = df_filtered.groupby('region_group')[y_metric].agg([
-        ('Среднее', 'mean'),
-        ('Медиана', 'median'),
-        ('Ст. откл.', 'std'),
-        ('Минимум', 'min'),
-        ('Максимум', 'max'),
-        ('Регионов', 'count')
-    ]).round(2)
-    
-    # Добавляем Дагестан
-    dag_stats = df_filtered[df_filtered['ter'] == '82'][y_metric]
-    if len(dag_stats) > 0:
-        summary.loc['🎯 Дагестан'] = [
-            dag_stats.mean(),
-            dag_stats.median(),
-            dag_stats.std(),
-            dag_stats.min(),
-            dag_stats.max(),
-            len(dag_stats)
-        ]
-    
-    st.dataframe(
-        summary,
-        use_container_width=True
+    # Анимированный scatter
+    fig = px.scatter(
+        df_anim,
+        x=x_metric,
+        y=y_metric,
+        animation_frame='year',
+        animation_group='ter',
+        size='chlico',
+        color='is_dagestan',
+        hover_name='region_name',
+        color_discrete_map={
+            True: COLORS['dagestan'],
+            False: COLORS['russia']
+        },
+        range_x=[df_anim[x_metric].min() * 0.9, df_anim[x_metric].max() * 1.1],
+        range_y=[df_anim[y_metric].min() * 0.9, df_anim[y_metric].max() * 1.1],
+        labels={
+            x_metric: {
+                'doxodn': 'Доход',
+                'r1v2': 'Возраст',
+                'chlico': 'Размер ДХ',
+                'food_share': 'Доля еды (%)',
+                'savings_rate': 'Сбережения (%)'
+            }.get(x_metric, x_metric),
+            y_metric: {
+                'doxodn': 'Доход',
+                'r1v2': 'Возраст',
+                'chlico': 'Размер ДХ',
+                'food_share': 'Доля еды (%)',
+                'savings_rate': 'Сбережения (%)'
+            }.get(y_metric, y_metric)
+        }
     )
-
-# ==================== ДИНАМИКА ====================
-elif page == "⏱️ Динамика 2016-2023":
-    st.title("⏱️ Динамика 2016-2023")
-    
-    st.markdown("""
-    Анализ временных трендов ключевых показателей. Сравнение Дагестана 
-    со среднероссийским уровнем.
-    """)
-    
-    # Выбор показателя
-    metric = st.selectbox(
-        "📊 Выберите показатель:",
-        ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate'],
-        format_func=lambda x: f"{METRIC_NAMES[x]} ({METRIC_UNITS[x]})"
-    )
-    
-    # График динамики
-    fig = go.Figure()
-    
-    # Дагестан
-    dag_data = data['time_series'][data['time_series']['region'] == 'Дагестан']
-    fig.add_trace(go.Scatter(
-        x=dag_data['year'],
-        y=dag_data[metric],
-        mode='lines+markers',
-        name='🎯 Дагестан',
-        line=dict(color='#e74c3c', width=3),
-        marker=dict(size=10)
-    ))
-    
-    # Россия
-    rus_data = data['time_series'][data['time_series']['region'] == 'Россия (без Дагестана)']
-    fig.add_trace(go.Scatter(
-        x=rus_data['year'],
-        y=rus_data[metric],
-        mode='lines+markers',
-        name='🇷🇺 Россия (среднее)',
-        line=dict(color='#3498db', width=3),
-        marker=dict(size=10)
-    ))
     
     fig.update_layout(
-        title=f'Динамика: {METRIC_NAMES[metric]}',
-        xaxis_title='Год',
-        yaxis_title=f'{METRIC_NAMES[metric]} ({METRIC_UNITS[metric]})',
-        height=500,
-        hovermode='x unified'
+        title='Динамика по годам (нажмите Play)',
+        height=600,
+        showlegend=False,
+        template='plotly_white'
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Темпы роста
-    st.markdown("---")
-    st.subheader("📈 Анализ роста (2016 → 2023)")
+    # Анализ роста
+    st.markdown("### 📈 Анализ роста 2016 → 2023")
     
-    # Получаем данные с защитой
-    dag_2016_data = dag_data[dag_data['year'] == 2016][metric]
-    dag_2023_data = dag_data[dag_data['year'] == 2023][metric]
-    rus_2016_data = rus_data[rus_data['year'] == 2016][metric]
-    rus_2023_data = rus_data[rus_data['year'] == 2023][metric]
+    metric_analysis = st.selectbox(
+        "Показатель для анализа роста:",
+        ['doxodn', 'r1v2', 'food_share', 'savings_rate'],
+        format_func=lambda x: {
+            'doxodn': 'Среднедушевой доход',
+            'r1v2': 'Средний возраст',
+            'food_share': 'Доля расходов на еду',
+            'savings_rate': 'Норма сбережений'
+        }[x],
+        key='growth_metric'
+    )
     
-    # Проверяем наличие данных
+    dag_data = data['stats'][data['stats']['ter'] == '82']
+    rus_data = data['stats'].groupby('year')[metric_analysis].mean().reset_index()
+    rus_data = rus_data.rename(columns={metric_analysis: 'value'})
+    
+    dag_2016_data = dag_data[dag_data['year'] == 2016][metric_analysis]
+    dag_2023_data = dag_data[dag_data['year'] == 2023][metric_analysis]
+    rus_2016_data = rus_data[rus_data['year'] == 2016]['value']
+    rus_2023_data = rus_data[rus_data['year'] == 2023]['value']
+    
     if len(dag_2016_data) == 0 or len(dag_2023_data) == 0 or len(rus_2016_data) == 0 or len(rus_2023_data) == 0:
-        st.warning("⚠️ Недостаточно данных для анализа роста (нужны данные за 2016 и 2023)")
+        st.warning("⚠️ Недостаточно данных для анализа роста")
     else:
         dag_2016 = dag_2016_data.values[0]
         dag_2023 = dag_2023_data.values[0]
@@ -719,717 +951,405 @@ elif page == "⏱️ Динамика 2016-2023":
         
         with col1:
             st.markdown("### 🎯 Дагестан")
-            st.metric(
-                label="2016",
-                value=f"{dag_2016:.1f}"
-            )
-            st.metric(
-                label="2023",
-                value=f"{dag_2023:.1f}",
-                delta=f"{dag_growth_pct:+.1f}%"
-            )
-            st.metric(
-                label="Абсолютный рост",
-                value=f"{dag_growth_abs:+.1f}"
-            )
+            st.metric(label="2016", value=f"{dag_2016:.1f}")
+            st.metric(label="2023", value=f"{dag_2023:.1f}", delta=f"{dag_growth_pct:+.1f}%")
+            st.metric(label="Абсолютный рост", value=f"{dag_growth_abs:+.1f}")
         
         with col2:
-            st.markdown("### 🇷🇺 Россия")
-            st.metric(
-                label="2016",
-                value=f"{rus_2016:.1f}"
-            )
-            st.metric(
-                label="2023",
-                value=f"{rus_2023:.1f}",
-                delta=f"{rus_growth_pct:+.1f}%"
-            )
-            st.metric(
-                label="Абсолютный рост",
-                value=f"{rus_growth_abs:+.1f}"
-            )
+            st.markdown("### 🇷🇺 Россия (среднее)")
+            st.metric(label="2016", value=f"{rus_2016:.1f}")
+            st.metric(label="2023", value=f"{rus_2023:.1f}", delta=f"{rus_growth_pct:+.1f}%")
+            st.metric(label="Абсолютный рост", value=f"{rus_growth_abs:+.1f}")
         
         with col3:
-            st.markdown("### 📊 Сравнение")
-            diff_growth_pct = dag_growth_pct - rus_growth_pct
+            st.markdown("### ⚖️ Разница темпов")
+            diff_pct = dag_growth_pct - rus_growth_pct
             st.metric(
-                label="Разница темпов роста",
-                value=f"{diff_growth_pct:+.1f} п.п.",
-                delta="быстрее" if diff_growth_pct > 0 else "медленнее"
+                label="Превышение темпа роста",
+                value=f"{diff_pct:+.1f}%",
+                delta="быстрее" if diff_pct > 0 else "медленнее"
             )
-            
-            gap_2016 = ((dag_2016 - rus_2016) / rus_2016 * 100)
-            gap_2023 = ((dag_2023 - rus_2023) / rus_2023 * 100)
-            gap_change = gap_2023 - gap_2016
-            
-            st.metric(
-                label="Разрыв в 2016",
-                value=f"{gap_2016:+.1f}%"
-            )
-            st.metric(
-                label="Разрыв в 2023",
-                value=f"{gap_2023:+.1f}%",
-                delta=f"{gap_change:+.1f} п.п."
-            )
-    
-    # Таблица по годам
-    st.markdown("---")
-    st.subheader("📊 Детальные данные по годам")
-    
-    pivot = data['time_series'].pivot(
-        index='year',
-        columns='region',
-        values=metric
-    ).round(2)
-    
-    # Добавляем разницу
-    pivot['Разница (абс.)'] = (pivot['Дагестан'] - pivot['Россия (без Дагестана)']).round(2)
-    pivot['Разница (%)'] = (
-        (pivot['Дагестан'] / pivot['Россия (без Дагестана)'] - 1) * 100
-    ).round(2)
-    
-    st.dataframe(
-        pivot,
-        use_container_width=True
-    )
 
-# ==================== ПРОФИЛИ КЛАСТЕРОВ ====================
-elif page == "👥 Профили кластеров":
-    st.title("👥 Профили кластеров")
+# ============================================================================
+# СТРАНИЦА: КЛАСТЕРНЫЙ АНАЛИЗ
+# ============================================================================
+
+elif page == "🎯 Кластерный анализ":
+    st.markdown("## 🎯 Кластерный анализ населения")
     
-    if data['clusters'] is None:
-        st.warning("⚠️ Данные по кластерам не найдены в базе")
-        st.stop()
+    st.info("💡 Население разделено на 5 кластеров по социально-экономическим характеристикам")
     
-    st.markdown("""
-    Кластеризация населения по самосохранительному поведению, демографическим 
-    и экономическим характеристикам. Использован метод **K-Means** с k=5.
-    """)
+    # Распределение кластеров
+    st.markdown("### 📊 Распределение населения по кластерам")
     
-    # Названия кластеров (можно настроить)
+    # Группируем по кластерам
+    cluster_summary = data['clusters'].groupby('cluster')['count'].sum().reset_index()
+    cluster_summary['percentage'] = (cluster_summary['count'] / cluster_summary['count'].sum() * 100)
+    
+    # Названия кластеров
     cluster_names = {
-        0: "Кластер 0: Описание",
-        1: "Кластер 1: Описание",
-        2: "Кластер 2: Описание",
-        3: "Кластер 3: Описание",
-        4: "Кластер 4: Описание"
+        0: 'K0: Пожилые пенсионеры',
+        1: 'K1: Средний класс',
+        2: 'K2: Молодые городские',
+        3: 'K3: Многодетные',
+        4: 'K4: Сельские натуральное хозяйство'
     }
     
-    # Профили кластеров
-    st.markdown("---")
-    st.subheader("📊 Характеристики кластеров")
+    cluster_summary['cluster_name'] = cluster_summary['cluster'].map(cluster_names)
     
-    # Преобразуем MultiIndex в нормальный формат
-    cluster_df = data['clusters'].copy()
-    
-    # Если есть MultiIndex колонки, упрощаем
-    if isinstance(cluster_df.columns, pd.MultiIndex):
-        cluster_df.columns = ['_'.join(col).strip() for col in cluster_df.columns.values]
-    
-    st.dataframe(
-        cluster_df,
-        use_container_width=True
+    # Donut chart
+    fig = px.pie(
+        cluster_summary,
+        values='count',
+        names='cluster_name',
+        hole=0.4,
+        color='cluster',
+        color_discrete_sequence=CLUSTER_COLORS,
+        title='Общее распределение по кластерам (все регионы)'
     )
     
-    # Распределение по регионам
-    if data['cluster_dist'] is not None:
-        st.markdown("---")
-        st.subheader("🗺️ Распределение кластеров по регионам")
-        
-        # Объединяем с названиями
-        dist_with_names = data['cluster_dist'].merge(
-            data['regions'][['ter', 'region_name', 'region_group']],
-            on='ter'
-        )
-        
-        # Тепловая карта
-        st.markdown("#### Тепловая карта (количество наблюдений)")
-        
-        pivot = dist_with_names.pivot(
-            index='region_name',
-            columns='cluster',
-            values='count'
-        ).fillna(0)
-        
-        fig = px.imshow(
-            pivot,
-            labels=dict(x="Кластер", y="Регион", color="Количество"),
-            aspect="auto",
-            height=800,
-            color_continuous_scale='YlOrRd',
-            text_auto=True
-        )
-        
-        fig.update_xaxes(side="top")
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Доли кластеров по группам регионов
-        st.markdown("---")
-        st.markdown("#### 📊 Распределение кластеров по группам регионов")
-        
-        # Считаем доли
-        group_cluster = dist_with_names.groupby(['region_group', 'cluster'])['count'].sum().reset_index()
-        group_totals = group_cluster.groupby('region_group')['count'].sum().reset_index()
-        group_totals.columns = ['region_group', 'total']
-        
-        group_cluster = group_cluster.merge(group_totals, on='region_group')
-        group_cluster['percentage'] = (group_cluster['count'] / group_cluster['total'] * 100).round(1)
-        
-        fig = px.bar(
-            group_cluster,
-            x='region_group',
-            y='percentage',
-            color='cluster',
-            title='Доля каждого кластера по группам регионов (%)',
-            labels={
-                'region_group': 'Группа регионов',
-                'percentage': 'Доля (%)',
-                'cluster': 'Кластер'
-            },
-            height=500,
-            text='percentage'
-        )
-        
-        fig.update_traces(texttemplate='%{text:.1f}%', textposition='inside')
-        fig.update_layout(barmode='stack')
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Выделяем Дагестан
-        st.markdown("---")
-        st.markdown("#### 🎯 Дагестан: Распределение кластеров")
-        
-        dag_dist = dist_with_names[dist_with_names['ter'] == '82'][['cluster', 'count']].copy()
-        
-        if len(dag_dist) == 0:
-            st.warning("⚠️ Нет данных по распределению кластеров в Дагестане")
-        else:
-            dag_dist['percentage'] = (dag_dist['count'] / dag_dist['count'].sum() * 100).round(1)
-            
-            fig = px.pie(
-                dag_dist,
-                values='count',
-                names='cluster',
-                title='Распределение кластеров в Дагестане',
-                hole=0.4,
-                labels={'cluster': 'Кластер', 'count': 'Количество'}
-            )
-            
-            fig.update_traces(textposition='inside', textinfo='percent+label')
-            
-            st.plotly_chart(fig, use_container_width=True)
-
-# ==================== КОРРЕЛЯЦИИ ====================
-elif page == "🔗 Корреляции":
-    st.title("🔗 Корреляционный анализ")
+    fig.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        hovertemplate='<b>%{label}</b><br>Население: %{value:,}<br>Доля: %{percent}<extra></extra>'
+    )
     
-    if data['corr_dag'] is None or data['corr_all'] is None:
-        st.warning("⚠️ Данные по корреляциям не найдены")
-        st.stop()
+    st.plotly_chart(fig, use_container_width=True)
     
+    # Дагестан vs Россия
+    st.markdown("### 🎯 Дагестан vs Россия по кластерам")
+    
+    dag_clusters = data['clusters'][data['clusters']['ter'] == '82'].groupby('cluster')['count'].sum()
+    all_clusters = data['clusters'].groupby('cluster')['count'].sum()
+    
+    dag_pct = (dag_clusters / dag_clusters.sum() * 100)
+    all_pct = (all_clusters / all_clusters.sum() * 100)
+    
+    comparison = pd.DataFrame({
+        'Кластер': [cluster_names[i] for i in range(5)],
+        'Дагестан (%)': [dag_pct.get(i, 0) for i in range(5)],
+        'Россия (%)': [all_pct.get(i, 0) for i in range(5)]
+    })
+    
+    # Grouped bar chart
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        name='Дагестан',
+        x=comparison['Кластер'],
+        y=comparison['Дагестан (%)'],
+        marker_color=COLORS['dagestan'],
+        text=comparison['Дагестан (%)'].round(1),
+        textposition='outside'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Россия',
+        x=comparison['Кластер'],
+        y=comparison['Россия (%)'],
+        marker_color=COLORS['russia'],
+        text=comparison['Россия (%)'].round(1),
+        textposition='outside'
+    ))
+    
+    fig.update_layout(
+        title='Сравнение распределения кластеров: Дагестан vs Россия',
+        yaxis_title='Доля населения (%)',
+        barmode='group',
+        height=500,
+        template='plotly_white'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Ключевое наблюдение
     st.markdown("""
-    Анализ взаимосвязей между переменными. Сравнение корреляций 
-    в Дагестане и в среднем по России.
-    """)
+    <div class="finding-box">
+        <div class="finding-title">🔥 Ключевое наблюдение</div>
+        <div class="finding-description">
+            <b>Кластер K4 (сельские с натуральным хозяйством)</b> составляет 
+            <b style="color: #dc2626; font-size: 1.3rem;">42%</b> населения Дагестана,
+            но только <b>1.6%</b> в остальной России. Это уникальная адаптивная 
+            стратегия: низкий денежный доход компенсируется натуральным хозяйством.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Выбор региона
-    region_choice = st.radio(
-        "Выберите регион:",
-        ['🎯 Дагестан', '🇷🇺 Вся Россия', '🔀 Сравнение']
-    )
+    # Профили кластеров - Radar Chart
+    st.markdown("### 🕸️ Профили кластеров (многомерное сравнение)")
     
-    st.markdown("---")
-    
-    if region_choice == '🎯 Дагестан':
-        st.subheader("Корреляционная матрица: Дагестан")
+    if 'profiles' in data and len(data['profiles']) > 0:
+        # Нормализуем данные для radar chart
+        profile_data = data['profiles'].copy()
         
-        fig = px.imshow(
-            data['corr_dag'],
-            labels=dict(color="Корреляция"),
-            x=data['corr_dag'].columns,
-            y=data['corr_dag'].index,
-            color_continuous_scale='RdBu_r',
-            zmin=-1,
-            zmax=1,
-            aspect="auto",
-            height=800
-        )
+        # Выбираем ключевые переменные
+        key_vars = ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']
         
-        fig.update_xaxes(side="bottom")
-        fig.update_layout(title="Тепловая карта корреляций (Дагестан)")
+        # Нормализация к [0, 1]
+        for var in key_vars:
+            if var in profile_data.columns:
+                min_val = profile_data[var].min()
+                max_val = profile_data[var].max()
+                profile_data[f'{var}_norm'] = (profile_data[var] - min_val) / (max_val - min_val)
         
-        st.plotly_chart(fig, use_container_width=True)
-    
-    elif region_choice == '🇷🇺 Вся Россия':
-        st.subheader("Корреляционная матрица: Вся Россия")
-        
-        fig = px.imshow(
-            data['corr_all'],
-            labels=dict(color="Корреляция"),
-            x=data['corr_all'].columns,
-            y=data['corr_all'].index,
-            color_continuous_scale='RdBu_r',
-            zmin=-1,
-            zmax=1,
-            aspect="auto",
-            height=800
-        )
-        
-        fig.update_xaxes(side="bottom")
-        fig.update_layout(title="Тепловая карта корреляций (Россия)")
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    else:  # Сравнение
-        st.subheader("🔀 Сравнение корреляций: Дагестан vs Россия")
-        
-        # Находим самые большие различия
-        common_vars = data['corr_dag'].columns.intersection(data['corr_all'].columns)
-        diff_matrix = data['corr_dag'][common_vars].loc[common_vars] - data['corr_all'][common_vars].loc[common_vars]
-        
-        # Топ различий
-        diff_values = []
-        for i in range(len(common_vars)):
-            for j in range(i+1, len(common_vars)):
-                var1 = common_vars[i]
-                var2 = common_vars[j]
-                diff = diff_matrix.loc[var1, var2]
-                dag_corr = data['corr_dag'].loc[var1, var2]
-                rus_corr = data['corr_all'].loc[var1, var2]
-                
-                diff_values.append({
-                    'Переменная 1': var1,
-                    'Переменная 2': var2,
-                    'Корр. Дагестан': dag_corr,
-                    'Корр. Россия': rus_corr,
-                    'Разница': diff,
-                    'Разница (абс.)': abs(diff)
-                })
-        
-        diff_df = pd.DataFrame(diff_values).sort_values('Разница (абс.)', ascending=False).head(15)
-        
-        st.markdown("#### 📊 ТОП-15 наибольших различий в корреляциях")
-        
+        # Radar chart
         fig = go.Figure()
         
-        fig.add_trace(go.Bar(
-            name='Дагестан',
-            y=[f"{row['Переменная 1']} × {row['Переменная 2']}" for _, row in diff_df.iterrows()],
-            x=diff_df['Корр. Дагестан'],
-            orientation='h',
-            marker_color='#e74c3c'
-        ))
+        categories = ['Доход', 'Возраст', 'Размер ДХ', 'Доля еды', 'Сбережения']
         
-        fig.add_trace(go.Bar(
-            name='Россия',
-            y=[f"{row['Переменная 1']} × {row['Переменная 2']}" for _, row in diff_df.iterrows()],
-            x=diff_df['Корр. Россия'],
-            orientation='h',
-            marker_color='#3498db'
-        ))
+        for cluster in range(5):
+            cluster_data = profile_data[profile_data['cluster'] == cluster]
+            if len(cluster_data) > 0:
+                values = [
+                    cluster_data['doxodn_norm'].values[0] if 'doxodn_norm' in cluster_data.columns else 0,
+                    cluster_data['r1v2_norm'].values[0] if 'r1v2_norm' in cluster_data.columns else 0,
+                    cluster_data['chlico_norm'].values[0] if 'chlico_norm' in cluster_data.columns else 0,
+                    cluster_data['food_share_norm'].values[0] if 'food_share_norm' in cluster_data.columns else 0,
+                    cluster_data['savings_rate_norm'].values[0] if 'savings_rate_norm' in cluster_data.columns else 0
+                ]
+                
+                fig.add_trace(go.Scatterpolar(
+                    r=values,
+                    theta=categories,
+                    fill='toself',
+                    name=cluster_names[cluster],
+                    line_color=CLUSTER_COLORS[cluster]
+                ))
         
         fig.update_layout(
-            barmode='group',
-            height=600,
-            xaxis_title='Коэффициент корреляции',
-            yaxis_title='Пара переменных',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 1]
+                )
+            ),
+            showlegend=True,
+            title='Многомерные профили кластеров (нормализовано)',
+            height=600
         )
         
         st.plotly_chart(fig, use_container_width=True)
-        
-        # Таблица с различиями
-        st.markdown("#### 📋 Детальная таблица")
-        st.dataframe(
-            diff_df[['Переменная 1', 'Переменная 2', 'Корр. Дагестан', 'Корр. Россия', 'Разница']],
-            use_container_width=True
-        )
 
-# ==================== СКАЧАТЬ ====================
-elif page == "💾 Скачать данные":
-    st.title("💾 Скачать данные")
+# ============================================================================
+# СТРАНИЦА: КОРРЕЛЯЦИИ
+# ============================================================================
+
+elif page == "🔗 Корреляции":
+    st.markdown("## 🔗 Корреляционный анализ")
     
-    st.markdown("""
-    Вы можете скачать агрегированные данные в формате CSV для 
-    дальнейшего анализа в Excel, R, Python и других инструментах.
-    """)
+    st.info("💡 Сравнение силы связей между переменными в Дагестане и России")
     
-    st.markdown("---")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 📊 Региональная статистика")
-        st.markdown("Показатели по 24 регионам за 2016-2023")
-        csv = data['stats'].to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="⬇️ Скачать regional_statistics.csv",
-            data=csv,
-            file_name="regional_statistics.csv",
-            mime="text/csv"
+    if 'correlations' in data and len(data['correlations']) > 0:
+        corr_data = data['correlations']
+        
+        # Heatmap корреляций
+        st.markdown("### 🔥 Тепловая карта корреляций")
+        
+        # Фильтр: Дагестан или Россия
+        region_choice = st.radio(
+            "Выберите регион:",
+            ["Дагестан", "Россия (среднее)"],
+            horizontal=True
         )
-        st.info(f"📦 Размер: {len(csv)/1024:.1f} KB")
+        
+        # Преобразуем данные в матрицу
+        # (Предполагаем что correlation_comparison.csv содержит var1, var2, corr_dagestan, corr_russia)
+        
+        if region_choice == "Дагестан" and 'corr_dagestan' in corr_data.columns:
+            pivot = corr_data.pivot(index='var1', columns='var2', values='corr_dagestan')
+        elif 'corr_russia' in corr_data.columns:
+            pivot = corr_data.pivot(index='var1', columns='var2', values='corr_russia')
+        else:
+            st.warning("⚠️ Данные корреляций не найдены")
+            pivot = None
+        
+        if pivot is not None:
+            # Heatmap с аннотациями
+            fig = go.Figure(data=go.Heatmap(
+                z=pivot.values,
+                x=pivot.columns,
+                y=pivot.index,
+                colorscale='RdBu_r',
+                zmid=0,
+                text=pivot.values.round(2),
+                texttemplate='%{text}',
+                textfont={"size": 10},
+                colorbar=dict(title="Корреляция")
+            ))
+            
+            fig.update_layout(
+                title=f'Матрица корреляций: {region_choice}',
+                height=600,
+                xaxis_title='Переменная',
+                yaxis_title='Переменная'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Ключевые различия
+        st.markdown("### ⚖️ Ключевые различия в корреляциях")
+        
+        if 'corr_dagestan' in corr_data.columns and 'corr_russia' in corr_data.columns:
+            corr_data['diff'] = abs(corr_data['corr_dagestan'] - corr_data['corr_russia'])
+            top_diff = corr_data.nlargest(5, 'diff')[['var1', 'var2', 'corr_dagestan', 'corr_russia', 'diff']]
+            
+            st.markdown("**Топ-5 пар с наибольшими различиями:**")
+            
+            for idx, row in top_diff.iterrows():
+                st.markdown(f"""
+                <div class="finding-box">
+                    <div class="finding-title">{row['var1']} ↔ {row['var2']}</div>
+                    <div style="display: flex; justify-content: space-around; margin: 1rem 0;">
+                        <div>
+                            <div style="font-size: 0.9rem; color: #64748b;">Дагестан</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #dc2626;">{row['corr_dagestan']:.3f}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.9rem; color: #64748b;">Россия</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">{row['corr_russia']:.3f}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.9rem; color: #64748b;">Разница</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #f59e0b;">{row['diff']:.3f}</div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+# ============================================================================
+# СТРАНИЦА: СКАЧАТЬ ДАННЫЕ
+# ============================================================================
+
+elif page == "📥 Скачать данные":
+    st.markdown("## 📥 Экспорт данных")
     
-    with col2:
-        st.markdown("### ⏱️ Временные ряды")
-        st.markdown("Дагестан vs Россия по годам")
-        csv = data['time_series'].to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="⬇️ Скачать time_series.csv",
-            data=csv,
-            file_name="time_series.csv",
-            mime="text/csv"
-        )
-        st.info(f"📦 Размер: {len(csv)/1024:.1f} KB")
+    st.info("💡 Все данные доступны для скачивания в формате CSV")
     
-    if data['clusters'] is not None:
-        st.markdown("---")
-        col1, col2 = st.columns(2)
+    # Список файлов
+    files = {
+        'regional_stats.csv': 'Региональная статистика по годам',
+        'cluster_distribution.csv': 'Распределение кластеров',
+        'cluster_profiles.csv': 'Профили кластеров',
+        'correlation_comparison.csv': 'Сравнение корреляций'
+    }
+    
+    for filename, description in files.items():
+        col1, col2 = st.columns([3, 1])
         
         with col1:
-            st.markdown("### 👥 Профили кластеров")
-            st.markdown("Характеристики 5 кластеров")
-            csv = data['clusters'].to_csv(encoding='utf-8').encode('utf-8')
-            st.download_button(
-                label="⬇️ Скачать cluster_profiles.csv",
-                data=csv,
-                file_name="cluster_profiles.csv",
-                mime="text/csv"
-            )
-            st.info(f"📦 Размер: {len(csv)/1024:.1f} KB")
+            st.markdown(f"**{filename}**")
+            st.caption(description)
         
         with col2:
-            st.markdown("### 🗺️ Распределение кластеров")
-            st.markdown("По регионам")
-            csv = data['cluster_dist'].to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="⬇️ Скачать cluster_distribution.csv",
-                data=csv,
-                file_name="cluster_distribution.csv",
-                mime="text/csv"
-            )
-            st.info(f"📦 Размер: {len(csv)/1024:.1f} KB")
+            try:
+                file_path = Path('data') / filename
+                if file_path.exists():
+                    with open(file_path, 'rb') as f:
+                        st.download_button(
+                            label="⬇️ Скачать",
+                            data=f,
+                            file_name=filename,
+                            mime='text/csv',
+                            key=filename
+                        )
+            except:
+                st.caption("Файл недоступен")
+        
+        st.markdown("---")
     
-    # Справочник регионов
-    st.markdown("---")
-    st.markdown("### 🗺️ Справочник регионов")
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        csv = data['regions'].to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="⬇️ Скачать regions.csv",
-            data=csv,
-            file_name="regions.csv",
-            mime="text/csv"
-        )
-        st.info(f"📦 Размер: {len(csv)/1024:.1f} KB")
-    
-    with col2:
-        st.dataframe(data['regions'], use_container_width=True)
+    # Полный dataset
+    st.markdown("### 📦 Полный датасет")
+    st.markdown("""
+    Для доступа к полному датасету (330,302 наблюдений) обратитесь 
+    к исследовательской группе ДФИЦ РАН.
+    """)
 
-# ==================== ДОКУМЕНТАЦИЯ ====================
+# ============================================================================
+# СТРАНИЦА: ДОКУМЕНТАЦИЯ
+# ============================================================================
+
 elif page == "📖 Документация":
-    st.title("📖 Документация")
+    st.markdown("## 📖 Документация проекта")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["О проекте", "Методология", "Переменные", "Цитирование"])
+    st.markdown("""
+    ### 🎯 О проекте
     
-    with tab1:
-        st.markdown(f"""
-        ## О проекте
-        
-        **Название:** {data['metadata']['title']}
-        
-        **Грант:** {data['metadata']['project']}
-        
-        **Организация:** {data['metadata']['organization']}
-        
-        **Источник данных:** {data['metadata']['data_source']}
-        
-        **Период:** {data['metadata']['period']}
-        
-        **Дата создания:** {data['metadata']['created']}
-        
-        ---
-        
-        ### 🎯 Цели проекта:
-        
-        1. Создание интегрированной базы данных по демоэкономическим процессам
-        2. Прогнозные модели демографических изменений и их влияния на экономику
-        3. Оценка влияния старения населения на валовой региональный продукт
-        4. Исследование самосохранительного поведения населения
-        5. Выявление демографических трендов Республики Дагестан
-        6. Оценка "демографического дивиденда"
-        7. Публикация открытой базы данных для научного сообщества
-        
-        ---
-        
-        ### 📊 Основные результаты:
-        
-        - **Демографический парадокс:** При более молодом населении (+2.8 года) и большем 
-          размере домохозяйств (+39%) Дагестан имеет доходы на 38.5% ниже среднероссийских
-        
-        - **Институциональные провалы:** Региональная система социальной поддержки 
-          практически отсутствует (2.9% vs 32.1% в среднем по РФ)
-        
-        - **Адаптивные стратегии:** Трехкратное превышение доли пенсий по инвалидности 
-          (20.2% vs 6.4%) как механизм компенсации институциональных провалов
-        
-        - **Структура бедности:** 62% расходов на продукты (vs 42% в РФ), отрицательная 
-          норма сбережений (-0.5%), признаки теневой экономики
-        """)
+    **Название:** Моделирование влияния демоэкономических процессов и самосохранительного 
+    потенциала населения на региональное развитие с использованием методов машинного обучения
     
-    with tab2:
-        st.markdown("""
-        ## Методология
-        
-        ### 📁 Источник данных
-        
-        Исследование основано на данных **Обследования бюджетов домашних хозяйств (ОБДХ)** 
-        Росстата за период 2016-2023 годов. ОБДХ - крупнейшее представительное обследование 
-        доходов, расходов и потребления российских домохозяйств.
-        
-        **Итоговая база:**
-        - Наблюдений: 330,302
-        - Регионов: 24
-        - Период: 2016-2023 (8 лет)
-        - Переменных: 90+
-        
-        ---
-        
-        ### 📊 Структура данных
-        
-        **Тип данных:** Repeated cross-sections (повторяющиеся поперечные срезы)
-        - 11.4% наблюдений - истинные панели (один и тот же индивид несколько лет)
-        - 88.6% - независимые наблюдения
-        
-        **Уровни анализа:**
-        - Индивидуальный (возраст, пол, образование, занятость)
-        - Домохозяйство (доходы, расходы, состав)
-        - Региональный (24 субъекта РФ)
-        
-        **Агрегация:**
-        - Квартальные данные → годовые (суммирование/усреднение)
-        - Экономические переменные: суммирование по 4 кварталам
-        - Демографические: значение на конец года (4-й квартал)
-        
-        ---
-        
-        ### 🔬 Методы анализа
-        
-        **1. Кластерный анализ (K-Means, k=5)**
-        - Группировка населения по самосохранительному поведению
-        - Переменные: демография, экономика, льготы, здоровье
-        - Цель: выявление типов поведения
-        
-        **2. Регрессионный анализ**
-        - Оценка влияния демографических факторов на экономику
-        - Pooled OLS с робастными стандартными ошибками
-        - Кластеризация на уровне региона×год
-        
-        **3. Временной анализ**
-        - Тренды 2016-2023
-        - Темпы роста
-        - Структурные сдвиги
-        
-        **4. Сравнительный анализ**
-        - Дагестан vs среднероссийский уровень
-        - Сравнение по группам регионов
-        - Выявление региональных особенностей
-        
-        ---
-        
-        ### ✅ Качество данных
-        
-        - **Математическая консистентность:** 100% (doxodn = doxodsn/chlico)
-        - **Полнота ключевых переменных:** >95%
-        - **Валидация:** Многоуровневая (структурная, логическая, статистическая)
-        - **Общая оценка качества:** 95/100
-        
-        ---
-        
-        ### ⚠️ Ограничения
-        
-        1. **Структура данных:** Не полноценная панель, ограничены панельные методы
-        2. **Репрезентативность:** ОБДХ репрезентативно на уровне регионов, но могут быть 
-           смещения на уровне отдельных групп
-        3. **Отсутствующие данные:** Некоторые важные переменные (например, этничность) 
-           отсутствуют в ОБДХ
-        4. **Теневая экономика:** Неформальные доходы занижены по определению
-        """)
+    **Грант:** РНФ № 25-28-20473  
+    **Организация:** Дагестанский федеральный исследовательский центр РАН  
+    **Период исследования:** 2016-2023  
     
-    with tab3:
-        st.markdown("""
-        ## Основные переменные
-        
-        ### 👥 Демографические
-        
-        | Переменная | Описание | Единицы |
-        |------------|----------|---------|
-        | **r1v2** | Возраст | лет |
-        | **pol** | Пол | 1=мужчина, 2=женщина |
-        | **chlico** | Число лиц в домохозяйстве | человек |
-        | **chdet** | Число детей до 16 лет | человек |
-        | **mest** | Тип населенного пункта | 1=город, 2=село |
-        
-        ---
-        
-        ### 💰 Экономические
-        
-        | Переменная | Описание | Единицы |
-        |------------|----------|---------|
-        | **doxodn** | Среднедушевой денежный доход | руб/год |
-        | **doxodsn** | Денежный доход домохозяйства | руб/год |
-        | **potras** | Потребительские расходы | руб/год |
-        | **rasres** | Располагаемые ресурсы | руб/год |
-        | **food_share** | Доля расходов на продукты | % |
-        | **savings_rate** | Норма сбережений | % |
-        | **natdox** | Натуральные поступления | руб/год |
-        
-        ---
-        
-        ### 🎓 Занятость и образование
-        
-        | Переменная | Описание | Коды |
-        |------------|----------|------|
-        | **r1v73** | Статус занятости | см. кодировку ОБДХ |
-        | **r1v8** | Уровень образования | см. кодировку ОБДХ |
-        | **chrab** | Число работающих в ДХ | человек |
-        
-        ---
-        
-        ### 🏥 Самосохранительное поведение
-        
-        | Переменная | Описание | Тип |
-        |------------|----------|-----|
-        | **has_pension** | Получает пенсию | 0/1 |
-        | **is_disabled** | Пенсия по инвалидности | 0/1 |
-        | **has_federal_benefit** | Федеральные льготы | 0/1 |
-        | **has_regional_benefit** | Региональные льготы | 0/1 |
-        | **r2v74_unified** | Льготные лекарства | 0/1 |
-        | **r2v76_unified** | Санаторно-курортное лечение | 0/1 |
-        
-        ---
-        
-        ### 👥 Кластеры
-        
-        | Кластер | Описание (примерное) |
-        |---------|----------------------|
-        | **0** | Группа с определёнными характеристиками |
-        | **1** | Группа с определёнными характеристиками |
-        | **2** | Группа с определёнными характеристиками |
-        | **3** | Группа с определёнными характеристиками |
-        | **4** | Группа с определёнными характеристиками |
-        
-        *Примечание: Детальное описание кластеров см. в разделе "Профили кластеров"*
-        
-        ---
-        
-        ### 📍 Географические
-        
-        | Код | Регион | Группа |
-        |-----|--------|--------|
-        | **82** | Республика Дагестан | Северный Кавказ |
-        | **45** | г. Москва | Богатые регионы |
-        | **40** | г. Санкт-Петербург | Богатые регионы |
-        | ... | ... | ... |
-        
-        *Полный список см. в разделе "Скачать данные → Справочник регионов"*
-        """)
+    ---
     
-    with tab4:
-        st.markdown("""
-        ## Как цитировать
-        
-        ### 📝 Формат цитирования базы данных:
-        
-        ```
-        Интерактивная база данных "Дагестан: Демоэкономический анализ" 
-        (2016-2023) / Проект РНФ № 25-28-20473. 
-        Дагестанский федеральный исследовательский центр РАН. 2025.
-        URL: [ссылка на дашборд]
-        ```
-        
-        ---
-        
-        ### 📚 Формат цитирования для статей:
-        
-        **На русском:**
-        ```
-        Автор(ы). Моделирование влияния демоэкономических процессов и 
-        самосохранительного потенциала населения на региональное развитие 
-        с использованием методов машинного обучения // Название журнала. 
-        2025. № X. С. Y-Z. DOI: ...
-        ```
-        
-        **На английском:**
-        ```
-        Author(s). Modeling the Impact of Demo-Economic Processes and 
-        Self-Preservation Potential of the Population on Regional Development 
-        Using Machine Learning Methods // Journal Name. 2025. Vol. X. 
-        No. Y. Pp. Z-W. DOI: ...
-        ```
-        
-        ---
-        
-        ### 📄 Лицензия
-        
-        Данные предоставляются для научных и образовательных целей.
-        
-        **Условия использования:**
-        - ✅ Научные исследования
-        - ✅ Образовательные цели
-        - ✅ Воспроизведение анализа
-        - ✅ Цитирование с указанием источника
-        - ❌ Коммерческое использование без согласования
-        
-        ---
-        
-        ### 📧 Контакты
-        
-        По вопросам использования данных и сотрудничества:
-        
-        **Организация:** Дагестанский федеральный исследовательский центр РАН  
-        **Проект:** РНФ № 25-28-20473  
-        **Сайт:** [укажите URL]  
-        **Email:** [укажите контактный email]
-        
-        ---
-        
-        ### 🙏 Благодарности
-        
-        Исследование выполнено при финансовой поддержке **Российского научного фонда** 
-        (грант № **25-28-20473**).
-        
-        Данные предоставлены **Федеральной службой государственной статистики 
-        (Росстат)** в рамках программы Обследования бюджетов домашних хозяйств (ОБДХ).
-        
-        ---
-        
-        ### 📊 Техническая информация
-        
-        **Дашборд создан с использованием:**
-        - Python 3.9+
-        - Streamlit 1.28
-        - Plotly 5.17
-        - Pandas 2.1
-        
-        **Хостинг:** Streamlit Cloud  
-        **Исходный код:** [укажите GitHub репозиторий если открыт]  
-        
-        **Версия дашборда:** 1.0  
-        **Дата последнего обновления:** {data['metadata']['created']}
-        """)
+    ### 📊 Данные
+    
+    **Источник:** Обследование бюджетов домашних хозяйств (ОБДХ) Росстата  
+    **Наблюдений:** 330,302  
+    **Регионов:** 24  
+    **Лет:** 8 (2016-2023)  
+    
+    ---
+    
+    ### 🤖 Методы машинного обучения
+    
+    1. **K-means кластеризация** - разделение населения на 5 групп
+    2. **Random Forest** - реконструкция реальных доходов
+    3. **SHAP анализ** - интерпретация вкладов признаков
+    4. **Ridge регрессия** - прогнозирование
+    
+    ---
+    
+    ### 🔬 Ключевые находки
+    
+    1. **Скрытая экономика:** 256% скрытого дохода в Дагестане (vs 124% по России)
+    2. **Адаптивные стратегии:** 20.2% пенсионеров-инвалидов (vs 6.4%)
+    3. **Натуральное хозяйство:** Кластер K4 составляет 42% (vs 1.6%)
+    4. **Барьеры накопления:** Корреляция доход-сбережения r=0.113 (vs 0.364)
+    
+    ---
+    
+    ### 📚 Публикации
+    
+    Результаты исследования представлены в следующих публикациях:
+    
+    1. Статья в журнале "Народонаселение" (RSCI)
+    2. Статья в журнале "Вестник Института экономики РАН" (RSCI)
+    3. Препринт на arXiv.org
+    
+    ---
+    
+    ### 👥 Исследовательская группа
+    
+    **Руководитель проекта:** [Имя]  
+    **Организация:** ДФИЦ РАН  
+    **Контакты:** [email]  
+    
+    ---
+    
+    ### 📄 Цитирование
+    
+    ```
+    [Авторы]. Моделирование влияния демоэкономических процессов 
+    и самосохранительного потенциала населения на региональное 
+    развитие с использованием методов машинного обучения. 
+    РНФ № 25-28-20473, ДФИЦ РАН, 2025.
+    ```
+    """)
 
-# ==================== FOOTER ====================
+# ============================================================================
+# FOOTER
+# ============================================================================
+
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: gray; font-size: 12px;'>
-    📊 Интерактивный дашборд проекта РНФ № 25-28-20473<br>
-    Дагестанский федеральный исследовательский центр РАН, 2025<br>
-    Данные: ОБДХ Росстат, 2016-2023<br>
-    <br>
-    💡 Для обратной связи и предложений используйте раздел Issues на GitHub
+<div style="text-align: center; color: #64748b; padding: 2rem;">
+    <p>🎯 Демоэкономический анализ Республики Дагестан</p>
+    <p><b>РНФ № 25-28-20473</b> | ДФИЦ РАН | 2016-2023</p>
+    <p style="font-size: 0.85rem;">
+        Создано с использованием Streamlit | Python | Plotly<br>
+        Машинное обучение × Региональное развитие
+    </p>
 </div>
 """, unsafe_allow_html=True)
