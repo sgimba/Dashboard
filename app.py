@@ -379,7 +379,7 @@ elif page == "🔮 Симулятор 2030 (NEW)":
             fig_wf.update_layout(title="Общая динамика дохода", height=350)
             st.plotly_chart(fig_wf, use_container_width=True)
 
-# --- НОВЫЙ ДЕТЕКТОР (ПОЛНОСТЬЮ НА ДАННЫХ) ---
+# --- НОВЫЙ ДЕТЕКТОР (ИСПРАВЛЕННЫЙ) ---
 elif page == "🕵️ Детектор скрытого (NEW)":
     st.markdown("## 🕵️ ML-Реконструкция доходов (Data-Driven)")
     
@@ -387,7 +387,7 @@ elif page == "🕵️ Детектор скрытого (NEW)":
     <div class="finding-box" style="margin-top:0;">
         <div class="finding-title">🔬 Алгоритм поиска аномалий</div>
         <div style="color: #475569; margin-top: 0.5rem;">
-        Этот инструмент не использует жесткие формулы. Он обращается к <b>загруженному датасету (330k наблюдений)</b>, 
+        Этот инструмент обращается к <b>загруженному датасету (330k наблюдений)</b>, 
         находит кластер людей, похожих на введенный профиль, и берет их реальные показатели потребления в качестве эталона.
         </div>
     </div>
@@ -398,21 +398,16 @@ elif page == "🕵️ Детектор скрытого (NEW)":
     with col_input:
         st.markdown("### 1. Профиль субъекта")
         with st.container(border=True):
-            # Ввод параметров для поиска кластера
             loc_type = st.radio("Местность", ["Город", "Село"], horizontal=True)
             age_group = st.selectbox("Возрастная группа", ["Молодежь (18-35)", "Средний возраст (36-60)", "Пенсионеры (60+)"])
             family_size = st.slider("Размер семьи (чел)", 1, 10, 4)
-            
             st.markdown("---")
             st.markdown("**Финансовые декларации**")
-            official_income = st.number_input("Заявленный доход (семья/мес)", value=40000, step=1000)
+            official_income = st.number_input("Заявленный доход (семья/мес)", value=50000, step=1000)
             food_expense = st.number_input("Реальные траты на еду (мес)", value=25000, step=1000)
 
-    # --- ЛОГИКА ОПРЕДЕЛЕНИЯ КЛАСТЕРА (НА ЛЕТУ) ---
-    # Мы пытаемся угадать кластер по правилам, описанным в вашей статье
-    # K0=Пенсионеры, K2=Молодые городские, K4=Сельские большие семьи и т.д.
-    
-    predicted_cluster_id = 1 # Default (Средний класс)
+    # --- ЛОГИКА ОПРЕДЕЛЕНИЯ КЛАСТЕРА ---
+    predicted_cluster_id = 1
     cluster_desc = "K1: Средний класс"
     
     if age_group == "Пенсионеры (60+)":
@@ -428,80 +423,72 @@ elif page == "🕵️ Детектор скрытого (NEW)":
         predicted_cluster_id = 3
         cluster_desc = "K3: Многодетные"
     
-    # --- ИЗВЛЕЧЕНИЕ ДАННЫХ ИЗ ДАТАСЕТА ---
-    # Берем профили, которые мы загрузили из CSV
+    # --- РАСЧЕТЫ ---
     df_prof = data['profiles']
     
     if df_prof is not None and not df_prof.empty:
-        # Находим строку для нужного кластера
+        # Данные из датасета
         cluster_stats = df_prof[df_prof['cluster'] == predicted_cluster_id].iloc[0]
-        
-        # Достаем ЖИВЫЕ данные из датасета
-        # Если в CSV проценты (0-100), используем как есть. Если (0-1), умножаем.
-        # Предполагаем, что в cluster_profiles.csv они уже в % (так было в коде генерации)
-        
         ref_food_share = cluster_stats.get('food_share', 45.0) 
         ref_savings = cluster_stats.get('savings_rate', 5.0)
         
-        # --- РАСЧЕТ РЕКОНСТРУКЦИИ ---
-        # Формула: Реальный Доход = Траты на еду / (Доля еды этого кластера / 100)
-        # Мы предполагаем, что субъект ведет себя как типичный представитель своего кластера
-        
+        # Модель
         reconstructed_income = food_expense / (ref_food_share / 100)
-        
-        # Корректировка на сбережения (если кластер сберегает, доход должен быть еще выше)
-        # Income = Spend / (1 - SavingsRate)
-        # Но у нас Spend = Food / Share. Итоговая формула:
         reconstructed_income_full = reconstructed_income / ((100 - ref_savings)/100)
-        
         hidden_income = reconstructed_income_full - official_income
         gap_pct = (hidden_income / official_income) * 100 if official_income > 0 else 0
 
+        # --- ОПРЕДЕЛЕНИЕ СТАТУСА (ВЫНЕСЛИ ЛОГИКУ НАРУЖУ) ---
+        # Порог срабатывания аномалии (например, 5000 руб или 10% разницы)
+        is_anomaly = hidden_income > 5000
+        
+        if is_anomaly:
+            status_color = "#dc2626" # Красный
+            status_label = "⚠️ СКРЫТЫЙ ДОХОД:"
+            status_value = f"{format_number_ru(hidden_income)} руб."
+            interpretation = f"Представители кластера *{cluster_desc}* при таких тратах обычно имеют доход не менее **{format_number_ru(reconstructed_income_full)}**. Разница указывает на теневые источники."
+        else:
+            status_color = "#10b981" # Зеленый
+            status_label = "✅ СТАТУС:"
+            status_value = "Норма"
+            interpretation = "Расходы субъекта соответствуют модели потребления выбранного кластера. Данные выглядят достоверными."
+
         with col_result:
             st.markdown("### 2. Результат анализа")
+            st.info(f"📊 Кластер субъекта: **{cluster_desc}**")
             
-            # Показываем, какой кластер определила система
-            st.info(f"📊 На основе профиля система соотнесла субъект с кластером: **{cluster_desc}**")
-            
-            # Визуализация параметров из ДАТАСЕТА
             c1, c2 = st.columns(2)
-            c1.metric("Эталонная доля еды", f"{ref_food_share:.1f}%", help=f"Среднее значение для кластера {predicted_cluster_id} из вашего датасета")
-            c2.metric("Эталон сбережений", f"{ref_savings:.1f}%", help=f"Среднее сбережение в кластере {predicted_cluster_id}")
-            
+            c1.metric("Эталонная доля еды", f"{ref_food_share:.1f}%")
+            c2.metric("Эталон сбережений", f"{ref_savings:.1f}%")
             st.markdown("---")
             
-            # Вердикт
-            st.markdown(f"""
+            # ЧИСТЫЙ HTML БЕЗ ЛОГИКИ ВНУТРИ СТРОКИ
+            html_block = f"""
             <div style="background: white; padding: 1.5rem; border-radius: 0.8rem; border: 1px solid #e2e8f0; margin-bottom:1rem;">
                 <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">РАСЧЕТНАЯ МОДЕЛЬ (НА ОСНОВЕ ДАННЫХ):</div>
+                
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                     <span>Заявлено:</span>
                     <span style="font-weight: bold;">{format_number_ru(official_income)} руб.</span>
                 </div>
+                
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom:10px; border-bottom:1px solid #eee;">
                     <span>Реконструкция (ML):</span>
                     <span style="font-weight: bold; color: #1e3a8a;">{format_number_ru(reconstructed_income_full)} руб.</span>
                 </div>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: bold; color: {'#dc2626' if hidden_income > 0 else '#10b981'}">
-                        {'⚠️ СКРЫТЫЙ ДОХОД:' if hidden_income > 5000 else '✅ СТАТУС:'}
-                    </span>
-                    <span style="font-size: 1.5rem; font-weight: 900; color: {'#dc2626' if hidden_income > 5000 else '#10b981'}">
-                        {format_number_ru(hidden_income) if hidden_income > 5000 else "Норма"}
-                    </span>
+                    <span style="font-weight: bold; color: {status_color};">{status_label}</span>
+                    <span style="font-size: 1.5rem; font-weight: 900; color: {status_color};">{status_value}</span>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """
+            st.markdown(html_block, unsafe_allow_html=True)
             
-            if hidden_income > 5000:
-                st.write(f"**Интерпретация:** Представители кластера *{cluster_desc}* при тратах на еду **{format_number_ru(food_expense)}** обычно имеют доход не менее **{format_number_ru(reconstructed_income_full)}**. Разница в **{int(gap_pct)}%** указывает на теневые источники.")
-            else:
-                st.write("**Интерпретация:** Расходы субъекта соответствуют модели потребления выбранного кластера. Данные выглядят достоверными.")
+            st.write(f"**Интерпретация:** {interpretation}")
 
     else:
         st.error("⚠️ Не удалось загрузить профили кластеров. Проверьте файл cluster_profiles.csv")
-
 # --- КАРТА ---
 elif page == "🗺️ Карта регионов":
     st.markdown("## 🗺️ Интерактивная карта России")
