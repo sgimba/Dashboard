@@ -475,7 +475,35 @@ elif page == "🕵️ Детектор скрытого (NEW)":
             reasons.append(f"• **Паттерн расходов:** Траты на питание ({format_number_ru(reported_food_expense)}) статистически невозможны при доходе {format_number_ru(official_income)}.")
             if "Город" in loc_type: reasons.append(f"• **География:** Городской профиль предполагает более высокие стандарты потребления (+18 тыс. руб.).")
             if education == "Высшее": reasons.append(f"• **Человеческий капитал:** Высшее образование коррелирует с более высоким скрытым потреблением.")
-            if family_size > 4: reasons.append(f"• **Размер семьи:** Большие домохозяйства ({family_size} чел.) в модели имеют высокий коэффициент скр
+            if family_size > 4: reasons.append(f"• **Размер семьи:** Большие домохозяйства ({family_size} чел.) в модели имеют высокий коэффициент скрытых доходов (SHAP importance).")
+            
+            for r in reasons:
+                st.write(r)
+                
+            st.markdown(f"""
+            <div class="key-finding" style="padding: 1rem; margin-top: 1rem; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;">
+                ⚠️ <b>DETECTED:</b> Субъект классифицирован как "Аномалия" (Isolation Forest).<br>
+                Вероятность теневой занятости: <b>Высокая ({min(int(anomaly_score), 99)}%)</b>.
+            </div>
+            """, unsafe_allow_html=True)
+            
+        else:
+            st.success("✅ **НОРМА:** Профиль потребления соответствует заявленным доходам. Аномалий не выявлено.")
+
+        # График
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=['Доходы'], x=[official_income], name='Официально', orientation='h',
+            marker_color=COLORS['russia'], text=format_number_ru(official_income), textposition='auto'
+        ))
+        if hidden_income > 0:
+            fig.add_trace(go.Bar(
+                y=['Доходы'], x=[hidden_income], name='Скрыто (ML)', orientation='h',
+                marker_color=COLORS['dagestan'], text=format_number_ru(hidden_income), textposition='auto'
+            ))
+        
+        fig.update_layout(barmode='stack', title="Структура доходов (Модель)", height=200, margin=dict(l=0,r=0,t=30,b=0))
+        st.plotly_chart(fig, use_container_width=True)
 
 # --- КАРТА ---
 elif page == "🗺️ Карта регионов":
