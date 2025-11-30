@@ -10,6 +10,13 @@ import plotly.graph_objects as go
 from pathlib import Path
 import numpy as np
 
+# Импорты для расширенной аналитики
+from scipy import stats
+from sklearn.linear_model import Ridge, LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import r2_score
+import io
+
 # ============================================================================
 # КОНФИГУРАЦИЯ
 # ============================================================================
@@ -408,6 +415,19 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
         st.warning("⚠️ Одна из групп пуста. Измените фильтры.")
         st.stop()
     
+    # Проверяем какие метрики есть в данных (ПЕРЕД ТАБАМИ!)
+    available_metrics = []
+    for var in ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']:
+        if var in df_a.columns and var in df_b.columns:
+            available_metrics.append(var)
+    
+    if not available_metrics:
+        st.error("❌ В данных отсутствуют нужные переменные для анализа")
+        st.stop()
+    
+    st.success(f"✅ Найдено метрик для анализа: {len(available_metrics)}")
+    st.write(f"📊 Доступные метрики: {available_metrics}")
+    
     # --- ТАБЫ ДЛЯ РАЗНЫХ ВИДОВ АНАЛИЗА ---
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Базовое сравнение", 
@@ -420,19 +440,9 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
     # ТАБ 1: БАЗОВОЕ СРАВНЕНИЕ (существующий код)
     # ========================================================================
     with tab1:
-    
+        st.write("🔵 ВЫ В ТАБЕ 1")  # явная метка
         # --- СРАВНИТЕЛЬНАЯ ТАБЛИЦА ---
         st.markdown("#### 📊 Ключевые показатели")
-        
-        # Проверяем какие метрики есть в данных
-        available_metrics = []
-        for var in ['doxodn', 'r1v2', 'chlico', 'food_share', 'savings_rate']:
-            if var in df_a.columns and var in df_b.columns:
-                available_metrics.append(var)
-        
-        if not available_metrics:
-            st.error("❌ В данных отсутствуют нужные переменные для анализа")
-            st.stop()
         
         comparison_data = []
         for var in available_metrics:
@@ -460,10 +470,6 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
         
         # --- ГРАФИКИ РАСПРЕДЕЛЕНИЙ ---
         st.markdown("#### 📊 Распределения")
-        
-        if not available_metrics:
-            st.error("❌ Нет доступных метрик для построения графиков")
-            st.stop()
         
         var_to_plot = st.selectbox("Показатель для графика:", available_metrics, format_func=lambda x: VAR_NAMES.get(x, x))
         
@@ -523,6 +529,361 @@ elif page == "🔍 Аналитика подгрупп (NEW)":
         except Exception as e:
             st.error(f"❌ Ошибка построения графиков: {e}")
             st.info("💡 Попробуйте выбрать другой показатель или изменить фильтры")
+    
+    # ========================================================================
+    # ТАБ 2: СТАТИСТИЧЕСКИЕ ТЕСТЫ
+    # ========================================================================
+    with tab2:
+        st.write("🟢 ВЫ В ТАБЕ 2")  # явная метка
+        st.markdown("#### 🔬 Проверка статистической значимости различий")
+        st.write(f"DEBUG: available_metrics = {available_metrics}")  # отладка
+        
+        st.info("💡 Проверяем, являются ли различия между группами статистически значимыми (не случайными)")
+        
+        test_results = []
+        
+        for var in available_metrics:
+            try:
+                data_a = df_a[var].dropna()
+                data_b = df_b[var].dropna()
+                
+                if len(data_a) < 2 or len(data_b) < 2:
+                    continue
+                
+                # T-test (параметрический)
+                t_stat, t_pval = stats.ttest_ind(data_a, data_b)
+                
+                # Mann-Whitney U (непараметрический)
+                u_stat, u_pval = stats.mannwhitneyu(data_a, data_b, alternative='two-sided')
+                
+                # Доверительные интервалы (95%)
+                ci_a = stats.t.interval(0.95, len(data_a)-1, 
+                                       loc=data_a.mean(), 
+                                       scale=stats.sem(data_a))
+                ci_b = stats.t.interval(0.95, len(data_b)-1,
+                                       loc=data_b.mean(),
+                                       scale=stats.sem(data_b))
+                
+                # Определяем значимость
+                is_significant_t = t_pval < 0.05
+                is_significant_u = u_pval < 0.05
+                
+                test_results.append({
+                    'Показатель': VAR_NAMES.get(var, var),
+                    'Группа A (mean ± SE)': f"{data_a.mean():.2f} ± {stats.sem(data_a):.2f}",
+                    'Группа B (mean ± SE)': f"{data_b.mean():.2f} ± {stats.sem(data_b):.2f}",
+                    'T-test p-value': f"{t_pval:.4f}",
+                    'Значимо (t-test)': "✅ Да" if is_significant_t else "❌ Нет",
+                    'Mann-Whitney p-value': f"{u_pval:.4f}",
+                    'Значимо (M-W)': "✅ Да" if is_significant_u else "❌ Нет"
+                })
+                
+            except Exception as e:
+                st.warning(f"⚠️ Ошибка теста для {var}: {e}")
+                continue
+        
+        if test_results:
+            results_df = pd.DataFrame(test_results)
+            st.dataframe(results_df, width='stretch', hide_index=True)
+            
+            st.markdown("---")
+            st.markdown("#### 📌 Интерпретация")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("""
+                **p-value < 0.05** → различия **статистически значимы**  
+                **p-value ≥ 0.05** → различия могут быть случайными
+                
+                **T-test** - для нормально распределённых данных  
+                **Mann-Whitney** - для любых распределений (робастнее)
+                """)
+            with col2:
+                sig_count = sum(1 for r in test_results if "✅" in r['Значимо (t-test)'])
+                total_count = len(test_results)
+                st.metric("Значимых различий", f"{sig_count} из {total_count}")
+            
+            # --- ЭКСПОРТ ---
+            st.markdown("---")
+            st.markdown("#### 📥 Экспорт результатов")
+            
+            # Создаём Excel файл с несколькими листами
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                # Лист 1: Статтесты
+                results_df.to_excel(writer, sheet_name='Статистические тесты', index=False)
+                
+                # Лист 2: Описательная статистика группы A
+                desc_a = df_a[available_metrics].describe().T
+                desc_a.to_excel(writer, sheet_name='Группа A - статистика')
+                
+                # Лист 3: Описательная статистика группы B
+                desc_b = df_b[available_metrics].describe().T
+                desc_b.to_excel(writer, sheet_name='Группа B - статистика')
+            
+            excel_data = output.getvalue()
+            
+            st.download_button(
+                label="📊 Скачать результаты (Excel)",
+                data=excel_data,
+                file_name=f"subgroup_analysis_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
+        else:
+            st.error("❌ Недостаточно данных для статистических тестов")
+    
+    # ========================================================================
+    # ТАБ 3: РЕГРЕССИОННЫЙ АНАЛИЗ
+    # ========================================================================
+    with tab3:
+        st.write("🟡 ВЫ В ТАБЕ 3")  # явная метка
+        st.markdown("#### 🤖 ML-модели для анализа факторов")
+        st.write(f"DEBUG tab3: available_metrics = {available_metrics}")  # отладка
+        
+        st.info("💡 Регрессия показывает, какие факторы влияют на целевую переменную и насколько сильно")
+        
+        # Выбор целевой переменной
+        target_var = st.selectbox(
+            "Целевая переменная (что предсказываем):",
+            available_metrics,
+            format_func=lambda x: VAR_NAMES.get(x, x),
+            key='target_regression'
+        )
+        
+        # Предикторы (всё кроме целевой)
+        predictor_options = [v for v in available_metrics if v != target_var]
+        
+        if not predictor_options:
+            st.warning("⚠️ Недостаточно переменных для регрессии")
+        else:
+            selected_predictors = st.multiselect(
+                "Факторы (предикторы):",
+                predictor_options,
+                default=predictor_options[:min(3, len(predictor_options))],
+                format_func=lambda x: VAR_NAMES.get(x, x)
+            )
+            
+            if selected_predictors:
+                group_choice = st.radio(
+                    "Анализировать:",
+                    ["Группу A", "Группу B", "Обе группы вместе"],
+                    horizontal=True
+                )
+                
+                # Выбираем данные
+                if group_choice == "Группу A":
+                    df_model = df_a
+                elif group_choice == "Группу B":
+                    df_model = df_b
+                else:
+                    df_model = pd.concat([df_a, df_b])
+                
+                try:
+                    # Подготовка данных
+                    X = df_model[selected_predictors].dropna()
+                    y = df_model.loc[X.index, target_var]
+                    
+                    if len(X) < 10:
+                        st.warning("⚠️ Слишком мало наблюдений (<10) для надёжной регрессии")
+                    else:
+                        # Нормализация
+                        scaler = StandardScaler()
+                        X_scaled = scaler.fit_transform(X)
+                        
+                        # Ridge регрессия
+                        model = Ridge(alpha=1.0)
+                        model.fit(X_scaled, y)
+                        
+                        # R² score
+                        r2_score = model.score(X_scaled, y)
+                        
+                        # Коэффициенты
+                        coef_df = pd.DataFrame({
+                            'Фактор': [VAR_NAMES.get(p, p) for p in selected_predictors],
+                            'Коэффициент': model.coef_,
+                            'Важность (abs)': np.abs(model.coef_)
+                        }).sort_values('Важность (abs)', ascending=False)
+                        
+                        # Результаты
+                        col1, col2 = st.columns([2, 1])
+                        
+                        with col1:
+                            st.markdown(f"**R² = {r2_score:.3f}** (качество модели)")
+                            st.caption(f"Модель объясняет {r2_score*100:.1f}% вариации в '{VAR_NAMES.get(target_var, target_var)}'")
+                        
+                        with col2:
+                            st.metric("Наблюдений", f"{len(X):,}")
+                        
+                        st.markdown("---")
+                        st.markdown("#### 📊 Важность факторов")
+                        
+                        fig_coef = px.bar(
+                            coef_df,
+                            x='Важность (abs)',
+                            y='Фактор',
+                            orientation='h',
+                            title=f'Влияние факторов на {VAR_NAMES.get(target_var, target_var)}',
+                            color='Коэффициент',
+                            color_continuous_scale='RdBu_r'
+                        )
+                        fig_coef.update_layout(height=400)
+                        st.plotly_chart(fig_coef, width="stretch")
+                        
+                        st.markdown("#### 📋 Коэффициенты регрессии")
+                        st.dataframe(
+                            coef_df[['Фактор', 'Коэффициент']].reset_index(drop=True),
+                            width='stretch',
+                            hide_index=True
+                        )
+                        
+                        st.markdown("---")
+                        st.markdown("#### 💡 Интерпретация")
+                        st.markdown(f"""
+                        **Положительный коэффициент** → при росте фактора растёт {VAR_NAMES.get(target_var, target_var)}  
+                        **Отрицательный коэффициент** → при росте фактора падает {VAR_NAMES.get(target_var, target_var)}  
+                        **Чем больше |коэффициент|** → тем сильнее влияние
+                        """)
+                        
+                except Exception as e:
+                    st.error(f"❌ Ошибка построения модели: {e}")
+            
+            else:
+                st.info("👆 Выберите хотя бы один предиктор")
+    
+    # ========================================================================
+    # ТАБ 4: ДИНАМИКА ВО ВРЕМЕНИ
+    # ========================================================================
+    with tab4:
+        st.write("🔴 ВЫ В ТАБЕ 4")  # явная метка
+        st.markdown("#### 📈 Временные тренды 2016-2023")
+        st.write(f"DEBUG tab4: df_a shape = {df_a.shape}, df_b shape = {df_b.shape}")  # отладка
+        
+        st.info("💡 Анализ изменения показателей во времени для выбранных подгрупп")
+        
+        # Проверяем наличие года
+        if 'year' not in df_a.columns or 'year' not in df_b.columns:
+            st.error("❌ В данных отсутствует переменная 'year'")
+        else:
+            metric_time = st.selectbox(
+                "Показатель для анализа:",
+                available_metrics,
+                format_func=lambda x: VAR_NAMES.get(x, x),
+                key='metric_time'
+            )
+            
+            try:
+                # Агрегируем по годам
+                trend_a = df_a.groupby('year')[metric_time].agg(['mean', 'std', 'count']).reset_index()
+                trend_b = df_b.groupby('year')[metric_time].agg(['mean', 'std', 'count']).reset_index()
+                
+                trend_a['group'] = 'Группа A'
+                trend_b['group'] = 'Группа B'
+                
+                trend_combined = pd.concat([trend_a, trend_b])
+                
+                # График линий
+                fig_trend = px.line(
+                    trend_combined,
+                    x='year',
+                    y='mean',
+                    color='group',
+                    markers=True,
+                    title=f'Динамика: {VAR_NAMES.get(metric_time, metric_time)}',
+                    labels={'year': 'Год', 'mean': VAR_NAMES.get(metric_time, metric_time)},
+                    color_discrete_map={'Группа A': COLORS['russia'], 'Группа B': COLORS['dagestan']}
+                )
+                
+                # Добавляем доверительные интервалы
+                for group_name, color in [('Группа A', COLORS['russia']), ('Группа B', COLORS['dagestan'])]:
+                    group_data = trend_combined[trend_combined['group'] == group_name]
+                    
+                    # SE = std / sqrt(n)
+                    group_data['se'] = group_data['std'] / np.sqrt(group_data['count'])
+                    group_data['ci_lower'] = group_data['mean'] - 1.96 * group_data['se']
+                    group_data['ci_upper'] = group_data['mean'] + 1.96 * group_data['se']
+                    
+                    fig_trend.add_scatter(
+                        x=group_data['year'].tolist() + group_data['year'].tolist()[::-1],
+                        y=group_data['ci_upper'].tolist() + group_data['ci_lower'].tolist()[::-1],
+                        fill='toself',
+                        fillcolor=color,
+                        opacity=0.2,
+                        line=dict(width=0),
+                        showlegend=False,
+                        hoverinfo='skip'
+                    )
+                
+                fig_trend.update_layout(height=500)
+                st.plotly_chart(fig_trend, width="stretch")
+                
+                # --- ЛИНЕЙНЫЙ ТРЕНД ---
+                st.markdown("---")
+                st.markdown("#### 📐 Линейный тренд и прогноз")
+                
+                col1, col2 = st.columns(2)
+                
+                for col, (df_group, group_name, color) in zip(
+                    [col1, col2],
+                    [(df_a, 'Группа A', COLORS['russia']), (df_b, 'Группа B', COLORS['dagestan'])]
+                ):
+                    with col:
+                        st.markdown(f"**{group_name}**")
+                        
+                        # Линейная регрессия
+                        years = df_group['year'].values.reshape(-1, 1)
+                        values = df_group[metric_time].values
+                        
+                        lr = LinearRegression()
+                        lr.fit(years, values)
+                        
+                        # Коэффициенты
+                        slope = lr.coef_[0]
+                        intercept = lr.intercept_
+                        
+                        # Прогноз на 2024-2025
+                        future_years = np.array([[2024], [2025]])
+                        predictions = lr.predict(future_years)
+                        
+                        # R²
+                        r2 = r2_score(values, lr.predict(years))
+                        
+                        st.metric(
+                            "Тренд (изменение/год)",
+                            f"{slope:+.2f}",
+                            delta=f"R² = {r2:.3f}"
+                        )
+                        
+                        st.markdown(f"**Прогноз:**")
+                        st.markdown(f"2024: **{predictions[0]:.1f}**")
+                        st.markdown(f"2025: **{predictions[1]:.1f}**")
+                        
+                        if slope > 0:
+                            st.success(f"📈 Рост на {abs(slope):.2f}/год")
+                        elif slope < 0:
+                            st.warning(f"📉 Падение на {abs(slope):.2f}/год")
+                        else:
+                            st.info("➡️ Стабильность")
+                
+                # --- ТАБЛИЦА ПО ГОДАМ ---
+                st.markdown("---")
+                st.markdown("#### 📋 Данные по годам")
+                
+                pivot_table = trend_combined.pivot(index='year', columns='group', values='mean').reset_index()
+                pivot_table['Разница'] = pivot_table['Группа A'] - pivot_table['Группа B']
+                
+                st.dataframe(
+                    pivot_table.style.format({
+                        'Группа A': '{:.2f}',
+                        'Группа B': '{:.2f}',
+                        'Разница': '{:+.2f}'
+                    }),
+                    width='stretch'
+                )
+                
+            except Exception as e:
+                st.error(f"❌ Ошибка анализа динамики: {e}")
+                st.info("💡 Убедитесь, что в подгруппах есть данные за несколько лет")
 
 # --- СИМУЛЯТОР 2030 (твой код) ---
 elif page == "🔮 Симулятор 2030":
