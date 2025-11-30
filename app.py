@@ -1,6 +1,6 @@
 """
 🚀 ВАУ-ДАШБОРД ДЛЯ РНФ № 25-28-20473
-Версия 5.1 (FINAL INTEGRATED) - Полный функционал + Понятные объяснения
+Версия 5.2 - Исправленная логика детектора и дизайн
 """
 
 import streamlit as st
@@ -143,7 +143,6 @@ st.markdown("""
         border-left: 4px solid #f59e0b; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         transition: all 0.3s ease;
     }
-    .metric-card:hover { transform: translateY(-5px); box-shadow: 0 12px 30px rgba(0,0,0,0.1); }
     
     .finding-box {
         background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -267,7 +266,7 @@ if page == "🏠 Главная":
         </div>
         """, unsafe_allow_html=True)
 
-# --- НОВЫЙ СИМУЛЯТОР (С ПОЯСНЕНИЯМИ) ---
+# --- НОВЫЙ СИМУЛЯТОР ---
 elif page == "🔮 Симулятор 2030 (NEW)":
     st.markdown("## 🔮 Сценарное моделирование развития")
     
@@ -276,7 +275,7 @@ elif page == "🔮 Симулятор 2030 (NEW)":
         <div class="finding-title">ℹ️ Как работает эта модель?</div>
         <div style="color: #475569; margin-top: 0.5rem;">
         Мы моделируем влияние трех фундаментальных факторов на экономику Дагестана к 2030 году.
-        Модель рассчитывает <b>"демографический дивиденд"</b> и эффект от <b>легализации теневого сектора</b>.
+        Двигайте ползунки ниже, чтобы увидеть, как урбанизация и выход из тени меняют доходы региона.
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -285,97 +284,70 @@ elif page == "🔮 Симулятор 2030 (NEW)":
     
     with col1:
         st.markdown("### 🎛️ Ввод параметров")
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         
-        st.markdown("**1. Урбанизация**")
-        urban_delta = st.slider("Сдвиг город/село", -10, 20, 0, format="%+d%%")
-        st.caption("Миграция из сел (низкая доходность) в города. +1% урбанизации дает прирост производительности.")
+        # Просто используем контейнеры без HTML оберток, чтобы не было пустых дыр
+        with st.container(border=True):
+            st.markdown("**1. Урбанизация**")
+            urban_delta = st.slider("Сдвиг город/село", -10, 20, 0, format="%+d%%")
+            st.caption("Миграция из сел в города. Повышает производительность.")
         
-        st.markdown("---")
-        st.markdown("**2. Обеление экономики**")
-        shadow_delta = st.slider("Легализация тени", 0, 50, 0, format="%d%%")
-        st.caption("Какую часть скрытого дохода (256%) удастся вывести в официальное поле.")
+        with st.container(border=True):
+            st.markdown("**2. Обеление экономики**")
+            shadow_delta = st.slider("Легализация тени", 0, 50, 0, format="%d%%")
+            st.caption("Вывод скрытых доходов (256%) в официальное поле.")
         
-        st.markdown("---")
-        st.markdown("**3. Демография**")
-        family_delta = st.slider("Размер семьи", -20, 20, 0, format="%+d%%")
-        st.caption("Снижение размера семьи увеличивает доход на душу населения.")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown("**3. Демография**")
+            family_delta = st.slider("Размер семьи", -20, 20, 0, format="%+d%%")
+            st.caption("Снижение размера семьи увеличивает доход на душу.")
         
     with col2:
         # Логика модели
         base_dag = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == 2023)].iloc[0]
         base_income = base_dag['doxodn']
         
-        # Коэффициенты (упрощенная эконометрическая модель)
-        urb_factor = 1 + (urban_delta * 0.008) # Эластичность 0.8
-        fam_factor = 1 - (family_delta * 0.01) # Обратная зависимость
-        
-        # Расчет "кусков" пирога
-        hidden_income_pool = base_income * 2.56 # Из вашей находки 256%
+        urb_factor = 1 + (urban_delta * 0.008)
+        fam_factor = 1 - (family_delta * 0.01)
+        hidden_income_pool = base_income * 2.56 
         legalized_sum = hidden_income_pool * (shadow_delta / 100)
         
-        # Итоговый прогноз
         organic_growth = base_income * urb_factor * fam_factor
         new_income = organic_growth + legalized_sum
-        
         real_growth_pct = ((new_income - base_income) / base_income) * 100
         
         st.markdown("### 📊 Результаты моделирования")
         
-        # Метрики
         m1, m2, m3 = st.columns(3)
-        with m1:
-            st.metric("База 2023", format_metric(base_income, 'doxodn'))
-        with m2:
-            st.metric("Прогноз 2030", format_metric(new_income, 'doxodn'), 
-                      delta=f"{real_growth_pct:.1f}%")
-        with m3:
-            st.metric("Эффект обеления", f"+{format_number_ru(legalized_sum)} руб",
-                      help="Сумма, которая перейдет из 'конвертов' в официальную статистику")
+        with m1: st.metric("База 2023", format_metric(base_income, 'doxodn'))
+        with m2: st.metric("Прогноз 2030", format_metric(new_income, 'doxodn'), delta=f"{real_growth_pct:.1f}%")
+        with m3: st.metric("Эффект обеления", f"+{format_number_ru(legalized_sum)} руб")
 
-        # График Waterfall
         fig = go.Figure(go.Waterfall(
             name = "20", orientation = "v",
             measure = ["relative", "relative", "relative", "relative", "total"],
             x = ["2023 (Факт)", "Эффект Урбанизации", "Демогр. эффект", "Вывод из тени", "2030 (Прогноз)"],
             textposition = "outside",
             text = [f"{int(x/1000)}k" for x in [base_income, base_income*(urb_factor-1), base_income*(fam_factor-1)*urb_factor, legalized_sum, new_income]],
-            y = [base_income, 
-                 base_income * (urb_factor - 1),
-                 base_income * (fam_factor - 1) * urb_factor,
-                 legalized_sum, 
-                 new_income],
+            y = [base_income, base_income * (urb_factor - 1), base_income * (fam_factor - 1) * urb_factor, legalized_sum, new_income],
             connector = {"line":{"color":"#cbd5e1"}},
             decreasing = {"marker":{"color":COLORS['warning']}},
             increasing = {"marker":{"color":COLORS['success']}},
             totals = {"marker":{"color":COLORS['primary']}}
         ))
         
-        fig.update_layout(
-            title="За счет чего вырастет доход?", 
-            height=450,
-            plot_bgcolor='rgba(0,0,0,0)',
-            yaxis=dict(gridcolor='#e2e8f0')
-        )
+        fig.update_layout(title="За счет чего вырастет доход?", height=450)
         st.plotly_chart(fig, use_container_width=True)
-        
-        # Текстовый вывод
-        if real_growth_pct > 0:
-            st.success(f"💡 **Вывод:** При заданных параметрах, официальный доход вырастет на **{int(new_income - base_income):,} руб.** Основной драйвер роста: **{'Легализация тени' if legalized_sum > (new_income-organic_growth) else 'Структурные изменения'}**.")
 
-# --- НОВЫЙ ДЕТЕКТОР (С ПОЯСНЕНИЯМИ) ---
+# --- НОВЫЙ ДЕТЕКТОР ---
 elif page == "🕵️ Детектор скрытого (NEW)":
     st.markdown("## 🕵️ Микро-детектор скрытых доходов")
     
     st.markdown("""
     <div class="finding-box" style="margin-top:0;">
-        <div class="finding-title">🔬 Методология: Обратная задача Энгеля</div>
+        <div class="finding-title">🔬 Методология: Почему это "скрытый" доход?</div>
         <div style="color: #475569; margin-top: 0.5rem;">
-        Закон Эрнста Энгеля гласит: <i>«Чем беднее семья, тем выше доля расходов на питание»</i>. 
-        Зная реальные траты на еду и заявленную долю в бюджете, мы можем восстановить <b>реальный доход</b> 
-        и сравнить его с официальной зарплатой.
+        Если семья тратит на жизнь значительно больше, чем зарабатывает официально, значит, существует 
+        неучтенный источник средств. Этот инструмент рассчитывает <b>реальный уровень жизни</b> на основе расходов на питание.
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -384,16 +356,13 @@ elif page == "🕵️ Детектор скрытого (NEW)":
     
     with col1:
         st.markdown("### 📝 Шаг 1. Введите данные")
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        
-        wage = st.number_input("1. Официальная зарплата (на руки)", value=25000, step=1000, help="То, что указано в справке 2-НДФЛ")
-        food = st.number_input("2. Реальные траты на еду в месяц", value=18000, step=500, help="Мясо, овощи, хлеб, кафе")
-        
-        st.markdown("---")
-        st.caption("Социологические параметры:")
-        share = st.slider("3. Доля еды в бюджете семьи (%)", 10, 80, 45, help="Для бедных семей это 50-60%, для богатых <20%")
-        savings = st.slider("4. Сколько удается откладывать (%)", 0, 50, 5)
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Убрали metric-card, используем стандартный контейнер
+        with st.container(border=True):
+            wage = st.number_input("1. Официальная зарплата (на руки)", value=45000, step=1000)
+            food = st.number_input("2. Реальные траты на еду в месяц", value=45000, step=500)
+            st.markdown("---")
+            share = st.slider("3. Доля еды в бюджете семьи (%)", 10, 80, 50, help="Для среднего класса это 30-40%")
+            savings = st.slider("4. Сбережения (%)", 0, 50, 5)
         
     with col2:
         st.markdown("### 🧮 Шаг 2. Расчет модели")
@@ -404,14 +373,16 @@ elif page == "🕵️ Детектор скрытого (NEW)":
         gap = real_income_estimated - wage
         gap_percent = (gap / wage) * 100 if wage > 0 else 0
         
-        # Визуализация логики (Explanation)
+        # Визуализация логики С УЧЕТОМ ЗАРПЛАТЫ
         st.markdown(f"""
         <div style="background: white; padding: 1.5rem; border-radius: 0.8rem; border: 1px solid #e2e8f0;">
             <p><b>Логика восстановления:</b></p>
             <ol>
-                <li>Если на еду уходит <b>{format_number_ru(food)} руб.</b>...</li>
-                <li>...и это <b>{share}%</b> бюджета, то полные расходы = <b>{format_number_ru(real_spend_total)} руб.</b></li>
-                <li>С учетом сбережений ({savings}%), реальный доход = <b>{format_number_ru(real_income_estimated)} руб.</b></li>
+                <li>Вы тратите на еду <b>{format_number_ru(food)} руб.</b> (это {share}% бюджета).</li>
+                <li>Значит, ваши полные расходы ≈ <b>{format_number_ru(real_spend_total)} руб.</b></li>
+                <li>С учетом сбережений ({savings}%), ваш <b>реальный доход ≈ {format_number_ru(real_income_estimated)} руб.</b></li>
+                <li style="margin-top: 10px; color: #dc2626; font-weight: bold;">НО ОФИЦИАЛЬНО ВЫ ЗАЯВИЛИ: {format_number_ru(wage)} руб.</li>
+                <li><b>РАЗНИЦА (Скрыто):</b> {format_number_ru(gap)} руб.</li>
             </ol>
         </div>
         """, unsafe_allow_html=True)
@@ -421,47 +392,25 @@ elif page == "🕵️ Детектор скрытого (NEW)":
         if gap > 5000:
             st.markdown(f"""
             <div class="key-finding" style="padding: 1.5rem; margin: 1rem 0; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);">
-                <div style="font-size: 1.2rem;">⚠️ СКРЫТЫЙ ДОХОД</div>
+                <div style="font-size: 1.2rem;">⚠️ ОБНАРУЖЕН СКРЫТЫЙ ДОХОД</div>
                 <div class="key-finding-number" style="font-size: 2.5rem;">{format_number_ru(gap)} руб.</div>
-                <div style="opacity: 0.9">Это +{int(gap_percent)}% к официальной зарплате</div>
+                <div style="opacity: 0.9">Вы живете на сумму, превышающую вашу зарплату на {int(gap_percent)}%</div>
             </div>
             """, unsafe_allow_html=True)
         elif gap < -5000:
-             st.warning(f"⚠️ **Странная аномалия:** Расчетный доход ниже официального. Возможно, доля расходов на еду указана неверно.")
+             st.warning(f"⚠️ **Аномалия:** Ваш расчетный доход ниже официального. Вероятно, вы переоценили долю расходов на еду.")
         else:
-            st.markdown("""
-            <div class="finding-box" style="border-left: 5px solid #10b981; background: #ecfdf5;">
-                <div class="finding-title" style="color: #047857;">✅ Все чисто</div>
-                <div>Официальные доходы соответствуют уровню потребления.</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        # Бар-чарт
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            name='Официально', x=['Доход'], y=[wage], 
-            marker_color=COLORS['russia'], text=format_number_ru(wage), textposition='auto'
-        ))
-        fig.add_trace(go.Bar(
-            name='Скрыто (Модель)', x=['Доход'], y=[gap if gap > 0 else 0], 
-            marker_color=COLORS['dagestan'], text=format_number_ru(gap) if gap > 0 else "", textposition='auto'
-        ))
-        
-        fig.update_layout(barmode='stack', title="Структура реального дохода", height=300, showlegend=True)
-        st.plotly_chart(fig, use_container_width=True)
+            st.success("✅ **Все чисто.** Ваши расходы соответствуют официальным доходам.")
 
-# --- КАРТА (КАК БЫЛО В 2.1) ---
+# --- КАРТА ---
 elif page == "🗺️ Карта регионов":
     st.markdown("## 🗺️ Интерактивная карта России")
     col1, col2 = st.columns(2)
-    with col1:
-        year = st.selectbox("📅 Год:", sorted(data['stats']['year'].unique(), reverse=True), index=0)
-    with col2:
-        metric = st.selectbox("📊 Показатель:", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES.get(x, x))
+    with col1: year = st.selectbox("📅 Год:", sorted(data['stats']['year'].unique(), reverse=True))
+    with col2: metric = st.selectbox("📊 Показатель:", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES.get(x, x))
     
     df_year = data['stats'][data['stats']['year'] == year].copy()
     
-    # Координаты (Hardcoded from v2.1)
     region_coords = {
         '01': (53.0, 83.0), '03': (45.0, 39.0), '07': (45.0, 43.0), '12': (46.3, 48.0),
         '18': (48.7, 44.5), '26': (43.3, 45.0), '40': (59.9, 30.3), '45': (55.75, 37.6),
@@ -492,7 +441,7 @@ elif page == "🗺️ Карта регионов":
     fig.update_layout(height=600, margin=dict(l=0, r=0, t=50, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
-# --- СРАВНЕНИЕ (КАК БЫЛО В 2.1) ---
+# --- СРАВНЕНИЕ ---
 elif page == "📊 Сравнение":
     st.markdown("## 📊 Сравнение регионов")
     year = st.selectbox("📅 Год:", sorted(data['stats']['year'].unique(), reverse=True))
@@ -511,7 +460,7 @@ elif page == "📊 Сравнение":
     fig.update_layout(height=800, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- ДИНАМИКА (КАК БЫЛО В 2.1) ---
+# --- ДИНАМИКА ---
 elif page == "⏱️ Динамика":
     st.markdown("## ⏱️ Динамика 2016-2023")
     st.info("💡 Нажмите ▶️ для анимации")
@@ -531,15 +480,12 @@ elif page == "⏱️ Динамика":
     fig.update_layout(height=600, showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- КЛАСТЕРЫ (ОБНОВЛЕННЫЕ) ---
+# --- КЛАСТЕРЫ ---
 elif page == "🎯 Кластеры":
     st.markdown("## 🎯 Кластерный анализ")
-    
-    # ТАБЫ: Старый обзор + Новый анализ
     tab1, tab2 = st.tabs(["📊 Общее распределение", "🧩 Глубокий анализ (Heatmap)"])
     
     with tab1:
-        # Старый код v2.1
         cluster_summary = data['clusters'].groupby('cluster')['count'].sum().reset_index()
         cluster_summary['cluster_name'] = cluster_summary['cluster'].map(CLUSTER_NAMES)
         
@@ -569,7 +515,6 @@ elif page == "🎯 Кластеры":
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        # Новый Heatmap (Интерактивный)
         st.markdown("### 🌡️ Тепловая карта характеристик")
         st.caption("Показывает, чем каждый кластер отличается от среднего (Z-Score)")
         
@@ -577,11 +522,8 @@ elif page == "🎯 Кластеры":
         if 'cluster' in df_prof.columns:
             df_prof = df_prof.set_index('cluster')
             
-        # Фильтруем только числовые и известные нам колонки
         cols = [c for c in df_prof.columns if c in VAR_NAMES]
         heatmap_data = df_prof[cols].rename(columns=VAR_NAMES)
-        
-        # Нормализация
         heatmap_norm = (heatmap_data - heatmap_data.mean()) / heatmap_data.std()
         
         fig_hm = px.imshow(
@@ -589,14 +531,11 @@ elif page == "🎯 Кластеры":
             labels=dict(x="Кластер", y="Показатель", color="Отклонение"),
             x=[CLUSTER_NAMES.get(i, str(i)) for i in heatmap_data.index],
             y=heatmap_data.columns,
-            color_continuous_scale='RdBu_r',
-            aspect="auto"
+            color_continuous_scale='RdBu_r', aspect="auto"
         )
         st.plotly_chart(fig_hm, use_container_width=True)
-        
-        st.info("💡 **Инсайт:** K4 (Сельские) ярко выделяется синим цветом в доходах (ниже среднего), но красным в размере семьи (выше среднего).")
 
-# --- ДАННЫЕ (КАК БЫЛО В 2.1) ---
+# --- ДАННЫЕ ---
 elif page == "📥 Данные":
     st.markdown("## 📥 Экспорт данных")
     
