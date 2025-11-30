@@ -1,6 +1,6 @@
 """
-🚀 НАУЧНЫЙ ДАШБОРД РНФ № 25-28-20473
-Версия 4.0 FINAL MERGED - Стабильная отчетность + Научные инструменты
+🚀 ВАУ-ДАШБОРД ДЛЯ РНФ № 25-28-20473
+Версия 5.0 (FINAL) - Полный функционал v2.1 + Научные инструменты v3.0
 """
 
 import streamlit as st
@@ -11,45 +11,35 @@ from pathlib import Path
 import numpy as np
 
 # ============================================================================
-# 1. КОНФИГУРАЦИЯ И СТИЛИ
+# КОНФИГУРАЦИЯ
 # ============================================================================
 
 st.set_page_config(
-    page_title="Демоэкономика Дагестана | РНФ",
-    page_icon="🧬",
+    page_title="Демоэкономический анализ Дагестана | РНФ",
+    page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# ============================================================================
+# ЦВЕТОВАЯ ПАЛИТРА (STRICTLY v2.1)
+# ============================================================================
+
 COLORS = {
     'primary': '#1e3a8a',
+    'secondary': '#f59e0b',
     'dagestan': '#dc2626',
     'russia': '#3b82f6',
+    'success': '#10b981',
     'warning': '#f59e0b',
-    'cluster': ['#3b82f6', '#10b981', '#f59e0b', '#dc2626', '#8b5cf6']
+    'background': '#f8fafc',
+    'text': '#1e293b',
 }
 
-# CSS для красивых плашек
-st.markdown("""
-<style>
-    .hero {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-        color: white; padding: 2rem; border-radius: 1rem; margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(30, 58, 138, 0.3); text-align: center;
-    }
-    .metric-card {
-        background: white; padding: 1.5rem; border-radius: 0.8rem;
-        border-left: 5px solid #dc2626; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    .science-box {
-        background: #f0f9ff; border: 1px solid #bae6fd; padding: 1.5rem;
-        border-radius: 0.8rem; margin-bottom: 1rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+CLUSTER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#dc2626', '#8b5cf6']
 
 # ============================================================================
-# 2. ЗАГРУЗКА И ПОДГОТОВКА ДАННЫХ
+# СЛОВАРИ НАЗВАНИЙ
 # ============================================================================
 
 REGION_NAMES = {
@@ -58,299 +48,512 @@ REGION_NAMES = {
     '40': 'Санкт-Петербург', '45': 'Москва', '46': 'Московская область',
     '60': 'Ростовская область', '76': 'Забайкальский край', '79': 'Республика Адыгея',
     '80': 'Республика Башкортостан', '81': 'Республика Бурятия', '82': 'Республика Дагестан',
-    '83': 'Кабардино-Балкарская Респ.', '84': 'Республика Алтай', '85': 'Республика Калмыкия',
-    '90': 'Северная Осетия', '91': 'Карачаево-Черкесия', '92': 'Республика Татарстан',
-    '93': 'Республика Тыва', '96': 'Чеченская Республика', '99': 'Еврейская АО',
+    '83': 'Кабардино-Балкарская Республика', '84': 'Республика Алтай', '85': 'Республика Калмыкия',
+    '90': 'Республика Северная Осетия - Алания', '91': 'Карачаево-Черкесская Республика',
+    '92': 'Республика Татарстан', '93': 'Республика Тыва', '96': 'Чеченская Республика',
+    '99': 'Еврейская автономная область',
 }
 
 VAR_NAMES = {
-    'doxodn': 'Доход (руб)',
-    'r1v2': 'Возраст (лет)',
-    'chlico': 'Размер семьи (чел)',
-    'food_share': 'Траты на еду (%)',
-    'savings_rate': 'Сбережения (%)',
-    'mest_urban_pct': 'Урбанизация (%)',
-    'pol_female_pct': 'Доля женщин (%)',
+    'doxodn': 'Среднедушевой доход',
+    'r1v2': 'Средний возраст',
+    'chlico': 'Размер домохозяйства',
+    'food_share': 'Доля расходов на продукты',
+    'savings_rate': 'Норма сбережений',
+    'mest_urban_pct': 'Доля городского населения',
+    'pol_female_pct': 'Доля женщин',
+    'income_reconstructed': 'Доход (ML-реконструкция)',
+}
+
+VAR_UNITS = {
+    'doxodn': 'руб', 'r1v2': 'лет', 'chlico': 'чел',
+    'food_share': '%', 'savings_rate': '%', 'mest_urban_pct': '%',
+    'pol_female_pct': '%', 'income_reconstructed': 'руб',
 }
 
 CLUSTER_NAMES = {
-    0: 'K0: Пожилые', 1: 'K1: Средний класс', 2: 'K2: Городская молодежь',
-    3: 'K3: Многодетные', 4: 'K4: Сельские (натуральное хоз-во)'
+    0: 'K0: Пожилые пенсионеры',
+    1: 'K1: Средний класс',
+    2: 'K2: Молодые городские',
+    3: 'K3: Многодетные',
+    4: 'K4: Сельские с натуральным хозяйством'
 }
+
+# ============================================================================
+# ФУНКЦИИ ФОРМАТИРОВАНИЯ (РОССИЙСКИЙ ФОРМАТ)
+# ============================================================================
+
+def format_number_ru(value, decimals=0):
+    if pd.isna(value): return "—"
+    value = round(value, decimals)
+    integer_part = int(abs(value))
+    decimal_part = abs(value) - integer_part
+    integer_str = f"{integer_part:,}".replace(',', '\u00a0')
+    if decimals > 0:
+        decimal_str = f"{decimal_part:.{decimals}f}"[2:]
+        result = f"{integer_str},{decimal_str}" if decimal_part > 0 else integer_str
+    else:
+        result = integer_str
+    return f"-{result}" if value < 0 else result
+
+def format_metric(value, var_name):
+    if pd.isna(value): return "—"
+    unit = VAR_UNITS.get(var_name, '')
+    if var_name in ['doxodn', 'income_reconstructed']:
+        return f"{format_number_ru(value, 0)}\u00a0{unit}"
+    elif unit == '%':
+        return f"{format_number_ru(value, 1)}%"
+    else:
+        return f"{format_number_ru(value, 1)}\u00a0{unit}"
+
+def add_region_names(df):
+    if 'ter' in df.columns:
+        df = df.copy()
+        df['region_name'] = df['ter'].map(REGION_NAMES).fillna('Регион ' + df['ter'].astype(str))
+    return df
+
+# ============================================================================
+# КАСТОМНЫЙ CSS (ТОТ ЖЕ ЧТО В V2.1)
+# ============================================================================
+
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    
+    .hero {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        color: white; padding: 3rem 2rem; border-radius: 1rem;
+        margin-bottom: 2rem; box-shadow: 0 20px 60px rgba(30, 58, 138, 0.3);
+        text-align: center;
+    }
+    .hero h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 0.5rem; }
+    
+    .key-finding {
+        background: linear-gradient(135deg, #dc2626 0%, #f59e0b 100%);
+        color: white; padding: 2.5rem; border-radius: 1rem;
+        font-size: 1.8rem; font-weight: 700; text-align: center;
+        margin: 2rem 0; box-shadow: 0 20px 60px rgba(220, 38, 38, 0.3);
+    }
+    .key-finding-number { font-size: 3rem; font-weight: 900; display: block; margin: 0.5rem 0; }
+    
+    .metric-card {
+        background: white; padding: 1.5rem; border-radius: 0.75rem;
+        border-left: 4px solid #f59e0b; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+    }
+    .metric-card:hover { transform: translateY(-5px); box-shadow: 0 12px 30px rgba(0,0,0,0.1); }
+    
+    .finding-box {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-left: 5px solid #3b82f6; padding: 1.5rem; border-radius: 0.75rem; margin: 1rem 0;
+    }
+    .finding-title { font-size: 1.2rem; font-weight: 700; color: #1e3a8a; }
+    .finding-value { font-size: 2rem; font-weight: 900; color: #dc2626; margin: 0.5rem 0; }
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# ЗАГРУЗКА ДАННЫХ
+# ============================================================================
 
 @st.cache_data
 def load_data():
     try:
         data_dir = Path('data')
-        stats = pd.read_csv(data_dir / 'regional_stats.csv')
-        dist = pd.read_csv(data_dir / 'cluster_distribution.csv')
-        profiles = pd.read_csv(data_dir / 'cluster_profiles.csv')
+        regional_stats = pd.read_csv(data_dir / 'regional_stats.csv')
+        cluster_dist = pd.read_csv(data_dir / 'cluster_distribution.csv')
+        cluster_profiles = pd.read_csv(data_dir / 'cluster_profiles.csv')
         
-        # Обработка ter
-        for df in [stats, dist]:
+        for df in [regional_stats, cluster_dist]:
             if 'ter' in df.columns:
                 df['ter'] = df['ter'].astype(str).str.strip()
-                df['region_name'] = df['ter'].map(REGION_NAMES).fillna(df['ter'])
-                
-        return {'stats': stats, 'clusters': dist, 'profiles': profiles}
+        
+        regional_stats = add_region_names(regional_stats)
+        cluster_dist = add_region_names(cluster_dist)
+        
+        return {'stats': regional_stats, 'clusters': cluster_dist, 'profiles': cluster_profiles}
     except Exception as e:
-        st.error(f"Ошибка загрузки данных: {e}")
+        st.error(f"Ошибка загрузки: {e}")
         return None
 
 data = load_data()
 if data is None: st.stop()
 
-def format_num(val, decimals=0):
-    if pd.isna(val): return "—"
-    s = f"{val:,.{decimals}f}".replace(',', ' ')
-    return s.replace('.', ',')
-
 # ============================================================================
-# 3. НАВИГАЦИЯ
+# SIDEBAR
 # ============================================================================
 
 with st.sidebar:
-    st.markdown("## 🧭 Навигация")
-    page = st.radio("Раздел:", [
-        "🏠 Главная (Отчет)",
-        "🔮 Симулятор 2030 (Наука)",
-        "🕵️ Микро-детектор (Наука)",
-        "🗺️ Карта регионов",
-        "📊 Сравнение и Динамика",
-        "🎯 Кластеры (Анализ)",
-        "📥 Скачать данные"
-    ])
-    st.info("РНФ № 25-28-20473\nГимбатов Ш.М.")
+    st.markdown("## 🗺️ Навигация")
+    page = st.radio(
+        "Выберите раздел:",
+        [
+            "🏠 Главная",
+            "🔮 Симулятор 2030 (NEW)",
+            "🕵️ Детектор скрытого (NEW)",
+            "🗺️ Карта регионов",
+            "📊 Сравнение",
+            "⏱️ Динамика",
+            "🎯 Кластеры",
+            "📥 Данные"
+        ],
+        index=0
+    )
+    st.info("РНФ № 25-28-20473\nРук. Гимбатов Ш.М.")
 
 # ============================================================================
-# 4. СТРАНИЦЫ
+# РАЗДЕЛЫ
 # ============================================================================
 
-# --- ГЛАВНАЯ ---
-if page == "🏠 Главная (Отчет)":
+# --- ГЛАВНАЯ (КАК БЫЛО) ---
+if page == "🏠 Главная":
     st.markdown("""
     <div class="hero">
-        <h1>🎯 ДЕМОЭКОНОМИЧЕСКИЙ АНАЛИЗ ДАГЕСТАНА</h1>
-        <p>Выявление скрытых паттернов с помощью машинного обучения</p>
+        <h1>🎯 ДЕМОЭКОНОМИЧЕСКИЙ АНАЛИЗ РЕСПУБЛИКИ ДАГЕСТАН</h1>
+        <p>Машинное обучение × Региональное развитие</p>
+        <div style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">РНФ № 25-28-20473 | ДФИЦ РАН | 2016-2023</div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Ключевая находка
-    st.markdown("""
-    <div style="background: linear-gradient(90deg, #dc2626, #f59e0b); color: white; padding: 2rem; border-radius: 1rem; text-align: center; margin-bottom: 2rem;">
-        <h2 style="margin:0">🔥 НАУЧНЫЙ РЕЗУЛЬТАТ: 256%</h2>
-        <p style="font-size: 1.2rem">Разрыв между реальным (ML) и официальным доходом в Дагестане</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # KPI
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Регионов", "24")
-    col2.metric("Наблюдений", "330 302")
-    col3.metric("Кластеров", "5")
-    col4.metric("Горизонт", "2016-2023")
-    
-    st.markdown("---")
-    st.markdown("### 📌 Основные выводы")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.info("💰 **Скрытая экономика:** Кластер K4 (Сельские) показывает аномально низкие официальные доходы при высоком уровне потребления, что подтверждает гипотезу о натуральном хозяйстве (42% выборки).")
-    with c2:
-        st.info("🚑 **Адаптация:** Пенсионеры-инвалиды используют социальные выплаты как экономическую стратегию (20.2% в Дагестане vs 6.4% в РФ).")
 
-# --- СИМУЛЯТОР (ИСПРАВЛЕННЫЙ) ---
-elif page == "🔮 Симулятор 2030 (Наука)":
-    st.markdown("## 🔮 Сценарное моделирование: Дагестан 2030")
-    st.markdown("Измените параметры, чтобы увидеть прогноз экономического развития.")
+    st.markdown("""
+    <div class="key-finding">
+        🔥 КЛЮЧЕВАЯ НАУЧНАЯ НАХОДКА
+        <span class="key-finding-number">256%</span>
+        Скрытый доход в Дагестане превышает официальный в 2,5 раза<br>
+        <small style="font-size: 1.2rem; opacity: 0.9;">(125\u00a0651 руб официально → 447\u00a0308 руб реально)</small>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("## 📊 Масштаб исследования")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f'<div class="metric-card"><div style="font-size: 2.5rem; font-weight: 900; color: #1e3a8a;">330\u00a0302</div><div style="font-size: 0.9rem; color: #64748b;">НАБЛЮДЕНИЙ</div></div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown(f'<div class="metric-card"><div style="font-size: 2.5rem; font-weight: 900; color: #1e3a8a;">24</div><div style="font-size: 0.9rem; color: #64748b;">РЕГИОНА</div></div>', unsafe_allow_html=True)
+    with col3:
+        st.markdown(f'<div class="metric-card"><div style="font-size: 2.5rem; font-weight: 900; color: #1e3a8a;">8</div><div style="font-size: 0.9rem; color: #64748b;">ЛЕТ</div></div>', unsafe_allow_html=True)
+    with col4:
+        st.markdown(f'<div class="metric-card"><div style="font-size: 2.5rem; font-weight: 900; color: #1e3a8a;">5</div><div style="font-size: 0.9rem; color: #64748b;">КЛАСТЕРОВ</div></div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("## 🔬 Ключевые научные открытия")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+        <div class="finding-box">
+            <div class="finding-title">💰 Скрытая экономика</div>
+            <div class="finding-value">256%</div>
+            <div style="color: #475569;">Скрытый доход в Дагестане против 124% по России. ML-реконструкция выявила масштабную теневую занятость.</div>
+        </div>
+        <div class="finding-box">
+            <div class="finding-title">👥 Натуральное хозяйство</div>
+            <div class="finding-value">42% vs 1,6%</div>
+            <div style="color: #475569;">Кластер K4 (молодые сельские семьи) доминирует в Дагестане, но почти отсутствует в России.</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown("""
+        <div class="finding-box">
+            <div class="finding-title">♿ Адаптивные стратегии</div>
+            <div class="finding-value">20,2% vs 6,4%</div>
+            <div style="color: #475569;">Пенсионеры-инвалиды. Использование статуса инвалидности как экономической стратегии выживания.</div>
+        </div>
+        <div class="finding-box">
+            <div class="finding-title">💸 Барьеры накопления</div>
+            <div class="finding-value">r = 0,113</div>
+            <div style="color: #475569;">Низкая корреляция доход-сбережения. Структурные барьеры накопления богатства в регионе.</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# --- НОВЫЙ СИМУЛЯТОР ---
+elif page == "🔮 Симулятор 2030 (NEW)":
+    st.markdown("## 🔮 Сценарное моделирование развития")
+    st.markdown("""
+    <div class="finding-box" style="margin-top:0;">
+    Этот раздел позволяет проверить гипотезы о влиянии структурных изменений (урбанизация, обеление экономики) 
+    на благосостояние региона.
+    </div>
+    """, unsafe_allow_html=True)
     
-    col_input, col_out = st.columns([1, 2])
+    col1, col2 = st.columns([1, 2])
     
-    with col_input:
-        st.markdown('<div class="science-box">', unsafe_allow_html=True)
-        st.subheader("🎛️ Параметры")
-        # ИСПРАВЛЕНИЕ: format вмеcто suffix
+    with col1:
+        st.markdown("### 🎛️ Параметры модели")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        # ИСПОЛЬЗУЕМ FORMAT ВМЕСТО SUFFIX
         urban_delta = st.slider("Урбанизация", -10, 20, 0, format="%d%%")
+        st.caption("Миграция сельского населения в города")
+        
         shadow_delta = st.slider("Обеление экономики", 0, 50, 0, format="%d%%")
+        st.caption("Легализация теневых доходов")
+        
         family_delta = st.slider("Размер семьи", -20, 20, 0, format="%d%%")
+        st.caption("Изменение демографической нагрузки")
         st.markdown('</div>', unsafe_allow_html=True)
         
-    with col_out:
-        # База 2023
-        base = data['stats'][(data['stats']['ter']=='82') & (data['stats']['year']==2023)].iloc[0]
-        base_inc = base['doxodn']
+    with col2:
+        # Логика модели
+        base_dag = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == 2023)].iloc[0]
+        base_income = base_dag['doxodn']
         
-        # Модель
-        # 1. Урбанизация: +1% урб = +0.8% дохода
-        factor_urb = 1 + (urban_delta * 0.008)
-        # 2. Семья: Меньше семья = больше доход на душу
-        factor_fam = 1 - (family_delta * 0.01)
-        # 3. Тень: Легализация скрытого (скрытый ~2.5x от базы)
-        hidden = base_inc * 2.5
-        legalized = hidden * (shadow_delta / 100)
+        # Коэффициенты
+        urb_factor = 1 + (urban_delta * 0.008)
+        fam_factor = 1 - (family_delta * 0.01)
+        hidden_income = base_income * 2.5 # Из вашей находки 256%
+        legalized_sum = hidden_income * (shadow_delta / 100)
         
-        new_inc = (base_inc * factor_urb * factor_fam) + legalized
-        growth = ((new_inc - base_inc) / base_inc) * 100
+        new_income = (base_income * urb_factor * fam_factor) + legalized_sum
         
-        st.markdown("### 📈 Прогноз")
+        st.markdown("### 📈 Прогноз 2030")
+        
         m1, m2 = st.columns(2)
-        m1.metric("Офиц. доход (прогноз)", f"{int(new_inc):,} ₽", f"{int(new_inc-base_inc):,} ₽")
-        m2.metric("Рост", f"{growth:.1f}%")
-        
+        with m1:
+            st.metric("Среднедушевой доход (Офиц.)", format_metric(new_income, 'doxodn'), 
+                      delta=f"{int(new_income - base_income):,} руб")
+        with m2:
+            real_growth = ((new_income - base_income) / base_income) * 100
+            st.metric("Рост к 2023 году", f"{real_growth:.1f}%")
+            
         fig = go.Figure(go.Waterfall(
-            measure=["relative", "relative", "relative", "relative", "total"],
-            x=["2023", "Урбанизация", "Демография", "Обеление", "2030"],
-            y=[base_inc, 
-               base_inc*(factor_urb-1), 
-               base_inc*factor_urb*(factor_fam-1), 
-               legalized, 
-               new_inc],
-            connector={"line":{"color":"grey"}},
+            name = "20", orientation = "v",
+            measure = ["relative", "relative", "relative", "relative", "total"],
+            x = ["2023", "Урбанизация", "Демография", "Обеление", "2030"],
+            textposition = "outside",
+            text = [f"{int(x/1000)}k" for x in [base_income, base_income*(urb_factor-1), base_income*(fam_factor-1)*urb_factor, legalized_sum, new_income]],
+            y = [base_income, 
+                 base_income * (urb_factor - 1),
+                 base_income * (fam_factor - 1) * urb_factor,
+                 legalized_sum, 
+                 new_income],
+            connector = {"line":{"color":"rgb(63, 63, 63)"}},
         ))
-        fig.update_layout(title="Факторы роста доходов", height=400)
+        fig.update_layout(title="Факторный анализ роста доходов", height=400)
         st.plotly_chart(fig, use_container_width=True)
 
-# --- МИКРО-ДЕТЕКТОР ---
-elif page == "🕵️ Микро-детектор (Наука)":
-    st.markdown("## 🕵️ Детектор скрытых доходов (Микро-уровень)")
-    st.write("Введите данные домохозяйства для проверки на скрытый доход (метод обратной задачи Энгеля).")
+# --- НОВЫЙ ДЕТЕКТОР ---
+elif page == "🕵️ Детектор скрытого (NEW)":
+    st.markdown("## 🕵️ Микро-детектор скрытых доходов")
+    st.markdown("""
+    <div class="finding-box" style="margin-top:0;">
+    Интерактивный инструмент для проверки отдельного домохозяйства на наличие скрытых доходов 
+    на основе обратной задачи закона Энгеля.
+    </div>
+    """, unsafe_allow_html=True)
     
     c1, c2 = st.columns(2)
     with c1:
-        wage = st.number_input("Зарплата на руки (руб)", 25000, step=1000)
-        food = st.number_input("Траты на еду (руб)", 15000, step=500)
-        share = st.slider("Доля еды в бюджете (%)", 10, 80, 45)
+        st.markdown("### 📝 Ввод данных")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        wage = st.number_input("Официальная зарплата (на руки), руб", value=25000, step=1000)
+        food = st.number_input("Траты на питание в месяц, руб", value=15000, step=500)
+        share = st.slider("Доля еды в бюджете (%)", 10, 80, 40, format="%d%%")
+        savings = st.slider("Норма сбережений (%)", 0, 50, 5, format="%d%%")
+        st.markdown('</div>', unsafe_allow_html=True)
         
     with c2:
         # Расчет
         real_spend = food / (share / 100)
-        # Учитываем сбережения 5% по умолчанию
-        real_income = real_spend / 0.95
-        
+        real_income = real_spend / ((100 - savings) / 100)
         gap = real_income - wage
         
-        st.markdown("### Результат")
+        st.markdown("### 🧮 Результат анализа")
         if gap > 5000:
-            st.error(f"⚠️ Обнаружен скрытый доход: **{int(gap):,} руб.**")
+            st.error(f"⚠️ **Выявлен скрытый доход:** {format_number_ru(gap)} руб.")
+            st.markdown(f"Реальный располагаемый доход оценивается в **{format_number_ru(real_income)} руб.**")
         else:
-            st.success("✅ Доходы соответствуют расходам")
+            st.success("✅ **Аномалий не выявлено.** Расходы соответствуют доходам.")
             
-        fig = go.Figure([go.Bar(x=['Официально', 'Модель'], y=[wage, real_income], marker_color=['#3b82f6', '#dc2626'])])
-        fig.update_layout(height=250, margin=dict(t=30,b=0))
+        fig = go.Figure([go.Bar(
+            x=['Официально', 'Модельная оценка'], 
+            y=[wage, real_income],
+            marker_color=[COLORS['russia'], COLORS['dagestan']],
+            text=[format_number_ru(wage), format_number_ru(real_income)],
+            textposition='auto'
+        )])
+        fig.update_layout(title="Сравнение доходов", height=300)
         st.plotly_chart(fig, use_container_width=True)
 
-# --- КАРТА (ИЗ ВЕРСИИ 2.1) ---
+# --- КАРТА (КАК БЫЛО В 2.1) ---
 elif page == "🗺️ Карта регионов":
-    st.markdown("## 🗺️ Интерактивная карта")
-    
+    st.markdown("## 🗺️ Интерактивная карта России")
     col1, col2 = st.columns(2)
-    with col1: year = st.selectbox("Год", sorted(data['stats']['year'].unique(), reverse=True))
-    with col2: metric = st.selectbox("Показатель", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES[x])
+    with col1:
+        year = st.selectbox("📅 Год:", sorted(data['stats']['year'].unique(), reverse=True), index=0)
+    with col2:
+        metric = st.selectbox("📊 Показатель:", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES.get(x, x))
     
-    # Координаты (Hardcoded для стабильности)
-    COORDS = {
-        '82': (42.2, 47.1), '45': (55.75, 37.6), '40': (59.9, 30.3), '03': (45.0, 39.0),
-        '96': (43.3, 45.7), '92': (55.8, 49.1), '80': (54.7, 56.0), '07': (45.0, 43.0),
-        '60': (47.2, 39.7), '01': (53.0, 83.0), '12': (46.3, 48.0), '18': (48.7, 44.5),
-        '26': (43.3, 45.0), '46': (55.8, 38.0), '76': (52.0, 114.0), '79': (44.6, 40.0),
-        '81': (52.0, 108.0), '83': (43.5, 43.5), '84': (51.0, 86.0), '85': (46.0, 45.0),
-        '90': (43.0, 44.0), '91': (43.5, 42.0), '93': (51.7, 94.4), '99': (48.5, 135.0)
+    df_year = data['stats'][data['stats']['year'] == year].copy()
+    
+    # Координаты (Hardcoded from v2.1)
+    region_coords = {
+        '01': (53.0, 83.0), '03': (45.0, 39.0), '07': (45.0, 43.0), '12': (46.3, 48.0),
+        '18': (48.7, 44.5), '26': (43.3, 45.0), '40': (59.9, 30.3), '45': (55.75, 37.6),
+        '46': (55.8, 38.0), '60': (47.2, 39.7), '76': (52.0, 114.0), '79': (44.6, 40.0),
+        '80': (54.7, 56.0), '81': (52.0, 108.0), '82': (42.2, 47.1), '83': (43.5, 43.5),
+        '84': (51.0, 86.0), '85': (46.0, 45.0), '90': (43.0, 44.0), '91': (43.5, 42.0),
+        '92': (55.8, 49.1), '93': (51.7, 94.4), '96': (43.3, 45.7), '99': (48.5, 135.0),
     }
     
-    df_map = data['stats'][data['stats']['year'] == year].copy()
-    df_map = df_map[df_map['ter'].isin(COORDS.keys())]
-    df_map['lat'] = df_map['ter'].map(lambda x: COORDS[x][0])
-    df_map['lon'] = df_map['ter'].map(lambda x: COORDS[x][1])
+    df_year = df_year[df_year['ter'].isin(region_coords.keys())].copy()
+    df_year['lat'] = df_year['ter'].map(lambda x: region_coords[x][0])
+    df_year['lon'] = df_year['ter'].map(lambda x: region_coords[x][1])
+    df_year['formatted_value'] = df_year[metric].apply(lambda x: format_metric(x, metric))
     
     fig = px.scatter_geo(
-        df_map, lat='lat', lon='lon', size=metric, color=metric,
+        df_year, lat='lat', lon='lon', size=metric, color=metric,
         hover_name='region_name',
-        color_continuous_scale='RdBu',
-        scope='asia', # Фокус на Евразию
-        title=f"{VAR_NAMES[metric]} ({year})"
+        hover_data={'lat': False, 'lon': False, metric: False, 'formatted_value': True},
+        color_continuous_scale=[[0, COLORS['russia']], [0.5, COLORS['warning']], [1, COLORS['dagestan']]],
+        size_max=50, title=f'{VAR_NAMES.get(metric, metric)} ({year})',
+        labels={'formatted_value': VAR_NAMES.get(metric, metric)}
     )
-    fig.update_geos(fitbounds="locations", visible=True, showcountries=True, countrycolor="lightgray")
-    # Принудительно ставим фокус на РФ
-    fig.update_geos(lataxis_range=[40, 70], lonaxis_range=[30, 140], projection_type='mercator')
-    fig.update_layout(height=600, margin={"r":0,"t":40,"l":0,"b":0})
+    fig.update_geos(
+        showcountries=True, countrycolor='lightgray', showsubunits=False, showland=True,
+        landcolor='white', lataxis_range=[40, 72], lonaxis_range=[30, 150],
+        projection_type='mercator', bgcolor='#f8fafc', resolution=50, center=dict(lat=60, lon=90)
+    )
+    fig.update_layout(height=600, margin=dict(l=0, r=0, t=50, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
-# --- СРАВНЕНИЕ И ДИНАМИКА ---
-elif page == "📊 Сравнение и Динамика":
-    st.markdown("## 📊 Аналитика")
+# --- СРАВНЕНИЕ (КАК БЫЛО В 2.1) ---
+elif page == "📊 Сравнение":
+    st.markdown("## 📊 Сравнение регионов")
+    year = st.selectbox("📅 Год:", sorted(data['stats']['year'].unique(), reverse=True))
+    df_year = data['stats'][data['stats']['year'] == year].copy()
+    metric = st.selectbox("📊 Показатель:", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES.get(x, x))
     
-    tab1, tab2 = st.tabs(["Рейтинг регионов", "Анимация во времени"])
-    
-    with tab1:
-        metric = st.selectbox("Показатель для рейтинга", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES[x])
-        df_last = data['stats'][data['stats']['year'] == 2023].sort_values(metric)
-        
-        fig = px.bar(df_last, x=metric, y='region_name', orientation='h', 
-                     color=metric, color_continuous_scale='Blues')
-        # Выделяем Дагестан линией
-        dag_val = df_last[df_last['ter']=='82'][metric].values[0]
-        fig.add_vline(x=dag_val, line_dash="dash", line_color="red", annotation_text="Дагестан")
-        fig.update_layout(height=700)
-        st.plotly_chart(fig, use_container_width=True)
-        
-    with tab2:
-        st.info("Нажмите Play ▶️")
-        fig_anim = px.scatter(
-            data['stats'], x='doxodn', y='food_share', animation_frame='year',
-            animation_group='ter', size='chlico', color='ter',
-            hover_name='region_name', range_x=[10000, 60000], range_y=[20, 70],
-            title="Доход vs Траты на еду (Динамика)"
-        )
-        fig_anim.update_layout(showlegend=False, height=600)
-        st.plotly_chart(fig_anim, use_container_width=True)
+    df_sorted = df_year.sort_values(metric, ascending=True)
+    fig = px.bar(
+        df_sorted, x=metric, y='region_name', orientation='h', color=metric,
+        color_continuous_scale=[[0, COLORS['russia']], [0.5, COLORS['warning']], [1, COLORS['dagestan']]],
+        title=f'{VAR_NAMES.get(metric, metric)} ({year})'
+    )
+    dag_val = df_year[df_year['ter'] == '82'][metric]
+    if len(dag_val) > 0:
+        fig.add_vline(x=dag_val.values[0], line_dash="dash", line_color=COLORS['dagestan'], annotation_text="Дагестан")
+    fig.update_layout(height=800, showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-# --- КЛАСТЕРЫ (ОБЪЕДИНЕННОЕ) ---
-elif page == "🎯 Кластеры (Анализ)":
+# --- ДИНАМИКА (КАК БЫЛО В 2.1) ---
+elif page == "⏱️ Динамика":
+    st.markdown("## ⏱️ Динамика 2016-2023")
+    st.info("💡 Нажмите ▶️ для анимации")
+    c1, c2 = st.columns(2)
+    with c1: x_metric = st.selectbox("Ось X:", list(VAR_NAMES.keys()), format_func=lambda x: VAR_NAMES[x])
+    with c2: y_metric = st.selectbox("Ось Y:", list(VAR_NAMES.keys()), index=4, format_func=lambda x: VAR_NAMES[x])
+    
+    df_anim = data['stats'].copy()
+    df_anim['is_dagestan'] = df_anim['ter'] == '82'
+    
+    fig = px.scatter(
+        df_anim, x=x_metric, y=y_metric, animation_frame='year', animation_group='ter',
+        size='chlico', color='is_dagestan', hover_name='region_name',
+        color_discrete_map={True: COLORS['dagestan'], False: COLORS['russia']},
+        labels={x_metric: VAR_NAMES[x_metric], y_metric: VAR_NAMES[y_metric]}
+    )
+    fig.update_layout(height=600, showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- КЛАСТЕРЫ (ОБНОВЛЕННЫЕ) ---
+elif page == "🎯 Кластеры":
     st.markdown("## 🎯 Кластерный анализ")
     
-    tab1, tab2 = st.tabs(["Распределение (Пирог)", "Тепловая карта (Наука)"])
+    # ТАБЫ: Старый обзор + Новый анализ
+    tab1, tab2 = st.tabs(["📊 Общее распределение", "🧩 Глубокий анализ (Heatmap)"])
     
     with tab1:
-        # Пирог
-        clust_sum = data['clusters'].groupby('cluster')['count'].sum().reset_index()
-        clust_sum['label'] = clust_sum['cluster'].map(CLUSTER_NAMES)
+        # Старый код v2.1
+        cluster_summary = data['clusters'].groupby('cluster')['count'].sum().reset_index()
+        cluster_summary['cluster_name'] = cluster_summary['cluster'].map(CLUSTER_NAMES)
         
-        fig = px.pie(clust_sum, values='count', names='label', title="Структура населения по кластерам",
-                     color_discrete_sequence=COLORS['cluster'])
+        fig = px.pie(
+            cluster_summary, values='count', names='cluster_name', hole=0.4,
+            color='cluster', color_discrete_sequence=CLUSTER_COLORS,
+            title='Распределение по кластерам'
+        )
         st.plotly_chart(fig, use_container_width=True)
         
-        st.info("K4 (Сельские) составляют 42% в Дагестане, но всего 1.6% в среднем по РФ.")
+        st.markdown("### 🎯 Дагестан vs Россия")
+        dag_clusters = data['clusters'][data['clusters']['ter'] == '82'].groupby('cluster')['count'].sum()
+        all_clusters = data['clusters'].groupby('cluster')['count'].sum()
+        dag_pct = (dag_clusters / dag_clusters.sum() * 100)
+        all_pct = (all_clusters / all_clusters.sum() * 100)
+        
+        comparison = pd.DataFrame({
+            'Кластер': [CLUSTER_NAMES[i] for i in range(5)],
+            'Дагестан (%)': [dag_pct.get(i, 0) for i in range(5)],
+            'Россия (%)': [all_pct.get(i, 0) for i in range(5)]
+        })
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(name='Дагестан', x=comparison['Кластер'], y=comparison['Дагестан (%)'], marker_color=COLORS['dagestan']))
+        fig.add_trace(go.Bar(name='Россия', x=comparison['Кластер'], y=comparison['Россия (%)'], marker_color=COLORS['russia']))
+        fig.update_layout(barmode='group', height=500)
+        st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        # Тепловая карта
-        st.subheader("Профили кластеров (Z-Score)")
-        df_prof = data['profiles'].set_index('cluster')
-        # Только числовые
+        # Новый Heatmap (Интерактивный)
+        st.markdown("### 🌡️ Тепловая карта характеристик")
+        st.caption("Показывает, чем каждый кластер отличается от среднего (Z-Score)")
+        
+        df_prof = data['profiles'].copy()
+        if 'cluster' in df_prof.columns:
+            df_prof = df_prof.set_index('cluster')
+            
+        # Фильтруем только числовые и известные нам колонки
         cols = [c for c in df_prof.columns if c in VAR_NAMES]
-        df_hm = df_prof[cols].rename(columns=VAR_NAMES)
+        heatmap_data = df_prof[cols].rename(columns=VAR_NAMES)
         
         # Нормализация
-        df_norm = (df_hm - df_hm.mean()) / df_hm.std()
+        heatmap_norm = (heatmap_data - heatmap_data.mean()) / heatmap_data.std()
         
-        fig_hm = px.imshow(df_norm.T, 
-                           x=[CLUSTER_NAMES.get(i) for i in df_norm.index],
-                           color_continuous_scale='RdBu_r', aspect='auto')
-        st.plotly_chart(fig_hm, use_container_width=True)
-        st.caption("Красный = показатель выше среднего, Синий = ниже среднего")
-
-# --- СКАЧАТЬ ---
-elif page == "📥 Скачать данные":
-    st.markdown("## 📥 Экспорт данных")
-    st.write("Данные подготовлены в рамках выполнения гранта РНФ № 25-28-20473.")
-    
-    for name, df in data.items():
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label=f"Скачать {name}.csv",
-            data=csv,
-            file_name=f"{name}.csv",
-            mime='text/csv'
+        fig_hm = px.imshow(
+            heatmap_norm.T,
+            labels=dict(x="Кластер", y="Показатель", color="Отклонение"),
+            x=[CLUSTER_NAMES.get(i, str(i)) for i in heatmap_data.index],
+            y=heatmap_data.columns,
+            color_continuous_scale='RdBu_r',
+            aspect="auto"
         )
+        st.plotly_chart(fig_hm, use_container_width=True)
+        
+        st.info("💡 **Инсайт:** K4 (Сельские) ярко выделяется синим цветом в доходах (ниже среднего), но красным в размере семьи (выше среднего).")
 
-# --- FOOTER ---
+# --- ДАННЫЕ (КАК БЫЛО В 2.1) ---
+elif page == "📥 Данные":
+    st.markdown("## 📥 Экспорт данных")
+    
+    files = {
+        'regional_stats.csv': 'Статистика по регионам',
+        'cluster_distribution.csv': 'Распределение кластеров',
+        'cluster_profiles.csv': 'Профили кластеров',
+        'correlation_comparison.csv': 'Сравнение корреляций'
+    }
+    
+    for filename, description in files.items():
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**{filename}**")
+            st.caption(description)
+        with col2:
+            try:
+                file_path = Path('data') / filename
+                if file_path.exists():
+                    with open(file_path, 'rb') as f:
+                        st.download_button("⬇️ Скачать", data=f, file_name=filename, mime='text/csv', key=filename)
+            except:
+                st.caption("Недоступен")
+        st.markdown("---")
+
+# ============================================================================
+# FOOTER
+# ============================================================================
 st.markdown("---")
-st.caption("© 2025 ДФИЦ РАН | Лаборатория демоэкономики")
+st.markdown("""
+<div style="text-align: center; color: #64748b; padding: 2rem;">
+    <p>🎯 Демоэкономический анализ Республики Дагестан</p>
+    <p><b>РНФ № 25-28-20473</b> | ДФИЦ РАН | 2016-2023</p>
+</div>
+""", unsafe_allow_html=True)
