@@ -232,9 +232,20 @@ if page == "🏠 Главная":
     st.markdown("---")
     st.subheader("📊 Ключевые показатели: Дагестан vs Россия")
     
-    # Берём последний год
-    dag_2023 = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == 2023)].iloc[0]
-    rus_2023 = data['stats'][(data['stats']['ter'] != '82') & (data['stats']['year'] == 2023)].groupby('year').mean().iloc[0]
+    # Берём последний год (с защитой)
+    latest_year = data['stats']['year'].max()
+    
+    dag_latest = data['stats'][(data['stats']['ter'] == '82') & (data['stats']['year'] == latest_year)]
+    if len(dag_latest) == 0:
+        st.warning("⚠️ Нет данных по Дагестану за последний год")
+        st.stop()
+    dag_2023 = dag_latest.iloc[0]
+    
+    rus_latest = data['stats'][(data['stats']['ter'] != '82') & (data['stats']['year'] == latest_year)]
+    if len(rus_latest) == 0:
+        st.warning("⚠️ Нет данных по России за последний год")
+        st.stop()
+    rus_2023 = rus_latest.groupby('year').mean().iloc[0]
     
     # Создаём данные для сравнения
     comparison_data = pd.DataFrame({
@@ -344,22 +355,27 @@ elif page == "🗺️ Карта регионов":
     
     with col2:
         st.markdown("### 🎯 Дагестан")
-        dag_row = df_year[df_year['ter'] == '82'].iloc[0]
-        dag_value = dag_row[metric]
-        rus_mean = df_year[df_year['ter'] != '82'][metric].mean()
-        diff_pct = ((dag_value - rus_mean) / rus_mean * 100)
+        dag_data = df_year[df_year['ter'] == '82']
         
-        st.metric(
-            label="Значение",
-            value=f"{dag_value:.1f} {METRIC_UNITS[metric]}",
-            delta=f"{diff_pct:+.1f}% от среднего по РФ"
-        )
-        
-        dag_rank = (df_year[metric] > dag_value).sum() + 1
-        st.metric(
-            label="Место в рейтинге",
-            value=f"{dag_rank} из {len(df_year)}"
-        )
+        if len(dag_data) == 0:
+            st.warning("⚠️ Нет данных по Дагестану за выбранный год")
+        else:
+            dag_row = dag_data.iloc[0]
+            dag_value = dag_row[metric]
+            rus_mean = df_year[df_year['ter'] != '82'][metric].mean()
+            diff_pct = ((dag_value - rus_mean) / rus_mean * 100)
+            
+            st.metric(
+                label="Значение",
+                value=f"{dag_value:.1f} {METRIC_UNITS[metric]}",
+                delta=f"{diff_pct:+.1f}% от среднего по РФ"
+            )
+            
+            dag_rank = (df_year[metric] > dag_value).sum() + 1
+            st.metric(
+                label="Место в рейтинге",
+                value=f"{dag_rank} из {len(df_year)}"
+            )
     
     with col3:
         st.markdown("### 📉 НИЗ-3 региона")
@@ -386,9 +402,7 @@ elif page == "🗺️ Карта регионов":
         return [''] * len(row)
     
     st.dataframe(
-        df_display.style
-            .apply(highlight_dagestan, axis=1)
-            .background_gradient(subset=[METRIC_NAMES[metric]], cmap='RdYlGn'),
+        df_display.style.apply(highlight_dagestan, axis=1),
         use_container_width=True,
         height=600
     )
@@ -620,7 +634,7 @@ elif page == "📈 Сравнение регионов":
         ]
     
     st.dataframe(
-        summary.style.background_gradient(subset=['Среднее'], cmap='RdYlGn'),
+        summary,
         use_container_width=True
     )
 
@@ -763,7 +777,7 @@ elif page == "⏱️ Динамика 2016-2023":
     ).round(2)
     
     st.dataframe(
-        pivot.style.background_gradient(subset=['Дагестан', 'Россия (без Дагестана)'], cmap='RdYlGn'),
+        pivot,
         use_container_width=True
     )
 
@@ -801,7 +815,7 @@ elif page == "👥 Профили кластеров":
         cluster_df.columns = ['_'.join(col).strip() for col in cluster_df.columns.values]
     
     st.dataframe(
-        cluster_df.style.background_gradient(cmap='RdYlGn', axis=0),
+        cluster_df,
         use_container_width=True
     )
     
@@ -1012,8 +1026,7 @@ elif page == "🔗 Корреляции":
         # Таблица с различиями
         st.markdown("#### 📋 Детальная таблица")
         st.dataframe(
-            diff_df[['Переменная 1', 'Переменная 2', 'Корр. Дагестан', 'Корр. Россия', 'Разница']]
-                .style.background_gradient(subset=['Разница'], cmap='RdBu_r', vmin=-1, vmax=1),
+            diff_df[['Переменная 1', 'Переменная 2', 'Корр. Дагестан', 'Корр. Россия', 'Разница']],
             use_container_width=True
         )
 
