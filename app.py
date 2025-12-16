@@ -1281,7 +1281,7 @@ elif page == "🎯 Кластеры":
             
             st.markdown("---")
             
-            # --- ВЫБОР ХАРАКТЕРИСТИК ---
+# --- ВЫБОР ХАРАКТЕРИСТИК ---
             st.markdown("#### 📊 Выберите характеристики для анализа")
             
             # Группируем характеристики по категориям
@@ -1299,7 +1299,8 @@ elif page == "🎯 Кластеры":
             with col_cat1:
                 st.markdown("**Основные показатели:**")
                 for var in ['doxodn', 'r1v2', 'chlico', 'food_share']:
-                    if var in df_filtered.columns:
+                    # ИСПРАВЛЕНО: df_filtered -> df_analysis
+                    if var in df_analysis.columns:
                         if st.checkbox(VAR_NAMES.get(var, var), value=(var=='doxodn'), key=f'char_{var}'):
                             selected_chars.append(var)
             
@@ -1307,7 +1308,8 @@ elif page == "🎯 Кластеры":
                 st.markdown("**Дополнительные показатели:**")
                 additional_vars = ['raxodn', 'savings_rate', 'natdoxod_total', 'natdoxod_share']
                 for var in additional_vars:
-                    if var in df_filtered.columns:
+                    # ИСПРАВЛЕНО: df_filtered -> df_analysis
+                    if var in df_analysis.columns:
                         if st.checkbox(VAR_NAMES.get(var, var), value=False, key=f'char_{var}'):
                             selected_chars.append(var)
             
