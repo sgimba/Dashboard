@@ -286,11 +286,7 @@ if page == "🏠 Главная":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
-        <div class="finding-box">
-            <div class="finding-title">💰 Скрытая экономика</div>
-            <div class="finding-value">256%</div>
-            <div style="color: #475569;">Скрытый доход в Дагестане против 124% по России. ML-реконструкция выявила масштабную теневую занятость.</div>
-        </div>
+       
         <div class="finding-box">
             <div class="finding-title">👥 Натуральное хозяйство</div>
             <div class="finding-value">42% vs 1,6%</div>
