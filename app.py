@@ -1226,7 +1226,7 @@ elif page == "🎯 Кластеры":
             # Используем profiles
             df_analysis = data['profiles'].copy()
         else:
-            df_analysis = df_full.copy()
+            df_analysis = df_full  # Убрали .copy() для экономии памяти
         
         # --- ФИЛЬТРЫ ---
         col1, col2 = st.columns(2)
