@@ -269,14 +269,7 @@ if page == "🏠 Главная":
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="key-finding">
-        🔥 КЛЮЧЕВАЯ НАУЧНАЯ НАХОДКА
-        <span class="key-finding-number">256%</span>
-        Скрытый доход в Дагестане превышает официальный в 2,5 раза<br>
-        <small style="font-size: 1.2rem; opacity: 0.9;">(125\u00a0651 руб официально → 447\u00a0308 руб реально)</small>
-    </div>
-    """, unsafe_allow_html=True)
-
+    
     st.markdown("## 📊 Масштаб исследования")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
