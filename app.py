@@ -269,7 +269,11 @@ if page == "🏠 Главная":
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    
+    <div class="key-finding">
+
+        <small style="font-size: 1.2rem; opacity: 0.9;">(125\u00a0651 руб официально → 447\u00a0308 руб реально)</small>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("## 📊 Масштаб исследования")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -286,7 +290,11 @@ if page == "🏠 Главная":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
-       
+            <div class="finding-box">
+            <div class="finding-title">💰 Скрытая экономика</div>
+            <div class="finding-value">256%</div>
+            <div style="color: #475569;">Скрытый доход в Дагестане против 124% по России. ML-реконструкция выявила масштабную теневую занятость.</div>
+        </div>
         <div class="finding-box">
             <div class="finding-title">👥 Натуральное хозяйство</div>
             <div class="finding-value">42% vs 1,6%</div>
