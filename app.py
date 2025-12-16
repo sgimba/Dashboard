@@ -284,7 +284,7 @@ if page == "🏠 Главная":
         st.markdown(f'<div class="metric-card"><div style="font-size: 2.5rem; font-weight: 900; color: #1e3a8a;">5</div><div style="font-size: 0.9rem; color: #64748b;">КЛАСТЕРОВ</div></div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("## 🔬 Ключевые научные открытия")
+    st.markdown()
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
