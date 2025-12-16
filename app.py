@@ -1232,52 +1232,52 @@ elif page == "🎯 Кластеры":
         col1, col2 = st.columns(2)
         
         with col1:
-            # Выбор региональной группы
-            region_group = st.selectbox(
-                "📍 Региональная группа:",
-                ["Все регионы", "Только Дагестан", "Россия без Дагестана", 
-                 "Северный Кавказ", "Развитые регионы", "Отсталые регионы"],
-                help="Выберите группу регионов для анализа"
+            # Выбор региональных групп (МУЛЬТИВЫБОР!)
+            selected_region_groups = st.multiselect(
+                "📍 Региональные группы для сравнения:",
+                ["Дагестан", "Россия без Дагестана", "Северный Кавказ", 
+                 "Развитые регионы", "Отсталые регионы"],
+                default=["Дагестан", "Россия без Дагестана"],
+                help="Выберите 2-5 групп регионов для сравнения"
             )
-            
-            # Фильтруем данные по региону
-            if region_group == "Только Дагестан" and 'ter' in df_analysis.columns:
-                df_filtered = df_analysis[df_analysis['ter'] == '82']
-            elif region_group == "Россия без Дагестана" and 'ter' in df_analysis.columns:
-                df_filtered = df_analysis[df_analysis['ter'] != '82']
-            elif region_group == "Северный Кавказ" and 'ter' in df_analysis.columns:
-                # Коды СК: 01-Адыгея, 07-КБР, 12-Дагестан удален, 15-Северная Осетия, 
-                # 20-Чечня, 26-Ставрополь, 91-КЧР
-                sk_codes = ['01', '07', '26', '91']
-                df_filtered = df_analysis[df_analysis['ter'].isin(sk_codes)]
-            elif region_group == "Развитые регионы" and 'ter' in df_analysis.columns:
-                # Москва, СПб, МО
-                dev_codes = ['45', '40', '78']  # По коду из REGION_NAMES
-                df_filtered = df_analysis[df_analysis['ter'].isin(dev_codes)]
-            elif region_group == "Отсталые регионы" and 'ter' in df_analysis.columns:
-                # Условно бедные регионы
-                poor_codes = ['79', '81', '83']  # Еврейская АО и другие
-                df_filtered = df_analysis[df_analysis['ter'].isin(poor_codes)]
-            else:
-                df_filtered = df_analysis.copy()
         
         with col2:
             # Выбор кластеров для сравнения
             selected_clusters = st.multiselect(
                 "🎯 Кластеры для сравнения:",
                 options=list(CLUSTER_NAMES.values()),
-                default=list(CLUSTER_NAMES.values())[:3],
-                help="Выберите 2-5 кластеров"
+                default=[CLUSTER_NAMES[4]],  # K4 по умолчанию (натуральное хозяйство)
+                help="Выберите 1-5 кластеров"
             )
         
-        if not selected_clusters:
+        if not selected_region_groups:
+            st.warning("⚠️ Выберите хотя бы одну региональную группу")
+        elif not selected_clusters:
             st.warning("⚠️ Выберите хотя бы один кластер")
         else:
             # Конвертируем названия обратно в ID
             cluster_ids = [k for k, v in CLUSTER_NAMES.items() if v in selected_clusters]
             
-            if 'cluster' in df_filtered.columns:
-                df_filtered = df_filtered[df_filtered['cluster'].isin(cluster_ids)]
+            # Функция фильтрации по региону
+            def filter_by_region(df, region_name):
+                if 'ter' not in df.columns:
+                    return df
+                
+                if region_name == "Дагестан":
+                    return df[df['ter'] == '82']
+                elif region_name == "Россия без Дагестана":
+                    return df[df['ter'] != '82']
+                elif region_name == "Северный Кавказ":
+                    sk_codes = ['01', '07', '26', '91']
+                    return df[df['ter'].isin(sk_codes)]
+                elif region_name == "Развитые регионы":
+                    dev_codes = ['45', '40', '78']
+                    return df[df['ter'].isin(dev_codes)]
+                elif region_name == "Отсталые регионы":
+                    poor_codes = ['79', '81', '83']
+                    return df[df['ter'].isin(poor_codes)]
+                else:
+                    return df
             
             st.markdown("---")
             
@@ -1316,48 +1316,49 @@ elif page == "🎯 Кластеры":
             else:
                 st.markdown("---")
                 
-                # --- РАСЧЕТ СТАТИСТИКИ ПО КЛАСТЕРАМ ---
-                st.markdown(f"#### 📋 Сравнительная таблица ({region_group})")
+                # --- РАСЧЕТ СТАТИСТИКИ ПО РЕГИОНАМ × КЛАСТЕРАМ ---
+                st.markdown(f"#### 📋 Сравнительная таблица: Регионы × Кластеры")
                 
                 cluster_stats = []
                 
-                for cluster_id in cluster_ids:
-                    cluster_data = df_filtered[df_filtered['cluster'] == cluster_id]
+                # Двойной цикл: регионы × кластеры
+                for region_name in selected_region_groups:
+                    df_region = filter_by_region(df_analysis, region_name)
                     
-                    if len(cluster_data) == 0:
-                        continue
-                    
-                    stats_row = {
-                        'Кластер': CLUSTER_NAMES[cluster_id],
-                        'N': len(cluster_data),
-                        'Доля (%)': len(cluster_data) / len(df_filtered) * 100
-                    }
-                    
-                    # Добавляем выбранные характеристики
-                    for var in selected_chars:
-                        if var in cluster_data.columns:
-                            mean_val = cluster_data[var].mean()
-                            stats_row[VAR_NAMES.get(var, var)] = mean_val
-                    
-                    cluster_stats.append(stats_row)
+                    for cluster_id in cluster_ids:
+                        if 'cluster' not in df_region.columns:
+                            continue
+                        
+                        cluster_data = df_region[df_region['cluster'] == cluster_id]
+                        
+                        if len(cluster_data) == 0:
+                            continue
+                        
+                        stats_row = {
+                            'Регион': region_name,
+                            'Кластер': CLUSTER_NAMES[cluster_id],
+                            'N': len(cluster_data),
+                            'Доля в регионе (%)': len(cluster_data) / len(df_region) * 100 if len(df_region) > 0 else 0
+                        }
+                        
+                        # Добавляем выбранные характеристики
+                        for var in selected_chars:
+                            if var in cluster_data.columns:
+                                mean_val = cluster_data[var].mean()
+                                stats_row[VAR_NAMES.get(var, var)] = mean_val
+                        
+                        cluster_stats.append(stats_row)
                 
-                # Добавляем строку "В среднем"
-                avg_row = {
-                    'Кластер': 'В среднем',
-                    'N': len(df_filtered),
-                    'Доля (%)': 100.0
-                }
-                for var in selected_chars:
-                    if var in df_filtered.columns:
-                        avg_row[VAR_NAMES.get(var, var)] = df_filtered[var].mean()
-                cluster_stats.append(avg_row)
+                if not cluster_stats:
+                    st.error("❌ Нет данных для выбранных регионов и кластеров")
+                    st.stop()
                 
                 df_table = pd.DataFrame(cluster_stats)
                 
                 # Форматирование
                 format_dict = {
                     'N': '{:,.0f}',
-                    'Доля (%)': '{:.1f}'
+                    'Доля в регионе (%)': '{:.1f}'
                 }
                 for var in selected_chars:
                     var_name = VAR_NAMES.get(var, var)
@@ -1380,7 +1381,7 @@ elif page == "🎯 Кластеры":
                 
                 viz_type = st.radio(
                     "Тип графика:",
-                    ["Bar chart (столбцы)", "Radar chart (паук)", "Line chart (линии)"],
+                    ["Bar chart (столбцы)", "Grouped bar (группировка)", "Heatmap (тепловая карта)"],
                     horizontal=True
                 )
                 
@@ -1390,62 +1391,50 @@ elif page == "🎯 Кластеры":
                     format_func=lambda x: VAR_NAMES.get(x, x)
                 )
                 
-                # Готовим данные для графика (без строки "В среднем")
-                plot_data = df_table[df_table['Кластер'] != 'В среднем'].copy()
+                plot_data = df_table.copy()
+                
+                # Создаём комбинированную метку для оси X
+                plot_data['Регион-Кластер'] = plot_data['Регион'] + ' - ' + plot_data['Кластер']
                 
                 if viz_type == "Bar chart (столбцы)":
                     fig = px.bar(
                         plot_data,
-                        x='Кластер',
+                        x='Регион-Кластер',
                         y=VAR_NAMES.get(metric_to_plot, metric_to_plot),
-                        color='Кластер',
-                        color_discrete_sequence=CLUSTER_COLORS,
-                        title=f'{VAR_NAMES.get(metric_to_plot, metric_to_plot)} по кластерам ({region_group})'
+                        color='Регион',
+                        title=f'{VAR_NAMES.get(metric_to_plot, metric_to_plot)}: сравнение регионов и кластеров',
+                        labels={'Регион-Кластер': ''}
                     )
-                    fig.update_layout(showlegend=False, height=400)
+                    fig.update_layout(height=500, xaxis_tickangle=-45)
                     st.plotly_chart(fig, width="stretch")
                 
-                elif viz_type == "Radar chart (паук)":
-                    # Radar chart для нескольких метрик
-                    if len(selected_chars) < 3:
-                        st.warning("⚠️ Для Radar chart нужно выбрать минимум 3 характеристики")
-                    else:
-                        fig = go.Figure()
-                        
-                        for idx, cluster_id in enumerate(cluster_ids):
-                            cluster_row = plot_data[plot_data['Кластер'] == CLUSTER_NAMES[cluster_id]]
-                            if len(cluster_row) == 0:
-                                continue
-                            
-                            values = [cluster_row[VAR_NAMES.get(var, var)].values[0] for var in selected_chars]
-                            
-                            # Нормализация (0-1) для сравнимости
-                            max_vals = [df_table[VAR_NAMES.get(var, var)].max() for var in selected_chars]
-                            values_norm = [v/m if m > 0 else 0 for v, m in zip(values, max_vals)]
-                            
-                            fig.add_trace(go.Scatterpolar(
-                                r=values_norm,
-                                theta=[VAR_NAMES.get(var, var) for var in selected_chars],
-                                fill='toself',
-                                name=CLUSTER_NAMES[cluster_id],
-                                line_color=CLUSTER_COLORS[idx % len(CLUSTER_COLORS)]
-                            ))
-                        
-                        fig.update_layout(
-                            polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-                            showlegend=True,
-                            title=f'Сравнение кластеров ({region_group})',
-                            height=500
-                        )
-                        st.plotly_chart(fig, width="stretch")
-                
-                elif viz_type == "Line chart (линии)":
-                    fig = px.line(
+                elif viz_type == "Grouped bar (группировка)":
+                    # Группировка: по регионам показать кластеры
+                    fig = px.bar(
                         plot_data,
                         x='Кластер',
                         y=VAR_NAMES.get(metric_to_plot, metric_to_plot),
-                        markers=True,
-                        title=f'{VAR_NAMES.get(metric_to_plot, metric_to_plot)} по кластерам ({region_group})'
+                        color='Регион',
+                        barmode='group',
+                        title=f'{VAR_NAMES.get(metric_to_plot, metric_to_plot)}: кластеры по регионам'
+                    )
+                    fig.update_layout(height=500)
+                    st.plotly_chart(fig, width="stretch")
+                
+                elif viz_type == "Heatmap (тепловая карта)":
+                    # Pivot для heatmap: строки = регионы, столбцы = кластеры
+                    pivot_data = plot_data.pivot(
+                        index='Регион',
+                        columns='Кластер',
+                        values=VAR_NAMES.get(metric_to_plot, metric_to_plot)
+                    )
+                    
+                    fig = px.imshow(
+                        pivot_data,
+                        labels=dict(x="Кластер", y="Регион", color=VAR_NAMES.get(metric_to_plot, metric_to_plot)),
+                        aspect="auto",
+                        color_continuous_scale='RdYlGn',
+                        title=f'{VAR_NAMES.get(metric_to_plot, metric_to_plot)}: Heatmap'
                     )
                     fig.update_layout(height=400)
                     st.plotly_chart(fig, width="stretch")
@@ -1459,7 +1448,7 @@ elif page == "🎯 Кластеры":
                 st.download_button(
                     label="📊 Скачать таблицу (CSV)",
                     data=csv,
-                    file_name=f"cluster_comparison_{region_group}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+                    file_name=f"cluster_comparison_{'_'.join(selected_region_groups)}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
 
