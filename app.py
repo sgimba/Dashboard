@@ -1441,9 +1441,27 @@ elif page == "🎯 Кластеры":
                     fig.update_layout(height=400)
                     st.plotly_chart(fig, width="stretch")
                 
-                # --- ЭКСПОРТ ---
+# --- ВИЗУАЛИЗАЦИЯ ---
                 st.markdown("---")
-                st.markdown("#### 📥 Экспорт результатов")
+                st.markdown("#### 📊 Визуализация различий")
+                
+                # ДОБАВЛЕН KEY="viz_type_selector"
+                viz_type = st.radio(
+                    "Тип графика:",
+                    ["Bar chart (столбцы)", "Grouped bar (группировка)", "Heatmap (тепловая карта)"],
+                    horizontal=True,
+                    key="viz_type_selector"  # <--- Уникальный ключ
+                )
+                
+                # ДОБАВЛЕН KEY="metric_plot_selector"
+                metric_to_plot = st.selectbox(
+                    "Показатель для графика:",
+                    selected_chars,
+                    format_func=lambda x: VAR_NAMES.get(x, x),
+                    key="metric_plot_selector"  # <--- Уникальный ключ
+                )
+                
+                plot_data = df_table.copy()
                 
                 # CSV
                 csv = df_table.to_csv(index=False).encode('utf-8-sig')
