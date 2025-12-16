@@ -270,8 +270,6 @@ if page == "🏠 Главная":
 
     st.markdown("""
     <div class="key-finding">
-
-        <small style="font-size: 1.2rem; opacity: 0.9;">(125\u00a0651 руб официально → 447\u00a0308 руб реально)</small>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("## 📊 Масштаб исследования")
