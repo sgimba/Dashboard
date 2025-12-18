@@ -263,6 +263,7 @@ if page == "🏠 Главная":
     st.markdown("""
     <div class="hero">
         <h1>ДЕМОЭКОНОМИЧЕСКИЙ АНАЛИЗ РЕСПУБЛИКИ ДАГЕСТАН</h1>
+        <p>Проект выполнен при финансовой поддержке РНФ</p>
         <div style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">РНФ № 25-28-20473 | ДФИЦ РАН | 2016-2023</div>
     </div>
     """, unsafe_allow_html=True)
