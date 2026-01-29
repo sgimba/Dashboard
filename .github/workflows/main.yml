@@ -1,0 +1,15 @@
+name: Keep Streamlit App Awake
+
+on:
+  schedule:
+    # Runs every day at 9:00 AM UTC (12:00 PM MSK)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake up Streamlit App
+        run: curl -s https://grant2025.streamlit.app/ > /dev/null
+        continue-on-error: true
